@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{{ student.username }} — Student Report | BeeWise.quiz{% endblock %}
+
+{% block content %}
+<div class="page-wrap">
+  <div style="max-width:900px;margin:0 auto;padding:24px 16px">
+
+    <!-- Back -->
+    <a href="/admin?tab=students" style="display:inline-flex;align-items:center;gap:6px;color:var(--honey);text-decoration:none;font-weight:700;margin-bottom:20px;font-size:14px">
+      ← Back to Admin
+    </a>
+
+    <!-- Header Card -->
+    <div style="background:var(--card-bg);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div style="width:72px;height:72px;border-radius:50%;background:var(--honey);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0">
+        {{ student.avatar or '🐝' }}
+      </div>
+      <div style="flex:1;min-width:180px">
+        <h1 style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:var(--text-primary);margin-bottom:4px">
+          {{ student.username }}
+        </h1>
+        <div style="color:var(--text-muted);font-size:13px">Joined {{ student.created[:10] if student.created else 'N/A' }}</div>
+        {% if student.streak %}
+        <div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:rgba(255,183,3,.15);border:1px solid rgba(255,183,3,.3);border-radius:20px;padding:4px 12px;font-size:13px;font-weight:700;color:var(--honey)">
+          🔥 {{ student.streak }} day streak
+        </div>
+        {% endif %}
+      </div>
+      <!-- Quick Stats -->
+      {% if stats %}
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:14px;padding:14px 18px;text-align:center;min-width:80px">
+          <div style="font-size:22px;font-weight:800;color:var(--honey)">{{ stats.games or 0 }}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Games</div>
+        </div>
+        <div style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:14px;padding:14px 18px;text-align:center;min-width:80px">
+          <div style="font-size:22px;font-weight:800;color:var(--honey)">{{ stats.avg_pct or 0 }}%</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Avg Score</div>
+        </div>
+        <div style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:14px;padding:14px 18px;text-align:center;min-width:80px">
+          <div style="font-size:22px;font-weight:800;color:#22c55e">{{ stats.best or 0 }}%</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Best</div>
+        </div>
+        <div style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:14px;padding:14px 18px;text-align:center;min-width:80px">
+          <div style="font-size:22px;font-weight:800;color:#ef4444">{{ stats.worst or 0 }}%</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Worst</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Progress Chart -->
+    {% if progress %}
+    <div style="background:var(--card-bg);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:20px">
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--section-title);margin-bottom:16px">📈 Score History (Last 15 Games)</h2>
+      <div style="display:flex;align-items:flex-end;gap:4px;height:80px">
+        {% for p in progress %}
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px" title="{{ p.mode }} — {{ p.pct }}%">
+          <div style="width:100%;background:{% if p.pct >= 80 %}#22c55e{% elif p.pct >= 60 %}var(--honey){% else %}#ef4444{% endif %};border-radius:4px 4px 0 0;height:{{ [p.pct * 0.76, 4] | max }}px;transition:.3s"></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span style="font-size:10px;color:var(--text-muted)">Oldest</span>
+        <span style="font-size:10px;color:var(--text-muted)">Latest</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Two Columns -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+
+      <!-- Category Performance -->
+      <div style="background:var(--card-bg);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)">
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--section-title);margin-bottom:14px">📊 Category Breakdown</h2>
+        {% if cat_stats %}
+          {% for cat in cat_stats %}
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:13px;font-weight:600;color:var(--text-primary)">{{ cat.category }}</span>
+              <span style="font-size:13px;font-weight:700;color:{% if cat.pct >= 80 %}#22c55e{% elif cat.pct >= 60 %}var(--honey){% else %}#ef4444{% endif %}">{{ cat.pct }}%</span>
+            </div>
+            <div style="height:6px;background:var(--stat-bg);border-radius:10px;overflow:hidden">
+              <div style="height:100%;width:{{ cat.pct }}%;background:{% if cat.pct >= 80 %}#22c55e{% elif cat.pct >= 60 %}var(--honey){% else %}#ef4444{% endif %};border-radius:10px;transition:.3s"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ cat.total }} questions answered · {{ cat.correct }} correct</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="color:var(--text-muted);font-size:14px">No category data yet.</p>
+        {% endif %}
+      </div>
+
+      <!-- Achievements -->
+      <div style="background:var(--card-bg);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)">
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--section-title);margin-bottom:14px">🏅 Achievements ({{ earned | length }})</h2>
+        {% if earned %}
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          {% for e in earned %}
+            {% set ach = ach_map.get(e.ach_id) %}
+            {% if ach %}
+            <div title="{{ ach.name }}: {{ ach.desc }}" style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:10px;padding:5px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">
+              {{ ach.icon }} {{ ach.name }}
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+          <p style="color:var(--text-muted);font-size:14px">No achievements yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Full Results Table -->
+    <div style="background:var(--card-bg);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)">
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--section-title);margin-bottom:14px">📋 All Results</h2>
+      {% if results %}
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:2px solid var(--stat-border)">
+              <th style="text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600">Mode</th>
+              <th style="text-align:center;padding:8px 10px;color:var(--text-muted);font-weight:600">Score</th>
+              <th style="text-align:center;padding:8px 10px;color:var(--text-muted);font-weight:600">%</th>
+              <th style="text-align:center;padding:8px 10px;color:var(--text-muted);font-weight:600">Grade</th>
+              <th style="text-align:center;padding:8px 10px;color:var(--text-muted);font-weight:600">Time</th>
+              <th style="text-align:center;padding:8px 10px;color:var(--text-muted);font-weight:600">Tab Sw.</th>
+              <th style="text-align:right;padding:8px 10px;color:var(--text-muted);font-weight:600">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+            <tr style="border-bottom:1px solid var(--item-border);transition:.15s" onmouseover="this.style.background='var(--item-bg)'" onmouseout="this.style.background=''">
+              <td style="padding:9px 10px;font-weight:600;color:var(--text-primary)">{{ r.mode }}</td>
+              <td style="padding:9px 10px;text-align:center;color:var(--text-primary)">{{ r.score }}/{{ r.total }}</td>
+              <td style="padding:9px 10px;text-align:center">
+                <span style="font-weight:700;color:{% if r.pct >= 80 %}#22c55e{% elif r.pct >= 60 %}var(--honey){% else %}#ef4444{% endif %}">{{ r.pct }}%</span>
+              </td>
+              <td style="padding:9px 10px;text-align:center;font-weight:700;color:var(--honey)">{{ r.grade }}</td>
+              <td style="padding:9px 10px;text-align:center;color:var(--text-muted)">{{ r.time_taken }}s</td>
+              <td style="padding:9px 10px;text-align:center">
+                {% if r.tab_switches > 0 %}
+                  <span style="color:#ef4444;font-weight:700">⚠️ {{ r.tab_switches }}</span>
+                {% else %}
+                  <span style="color:var(--text-muted)">—</span>
+                {% endif %}
+              </td>
+              <td style="padding:9px 10px;text-align:right;color:var(--text-muted);font-size:12px">{{ r.played_at[:16] if r.played_at else '' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p style="color:var(--text-muted);font-size:14px">No results yet.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

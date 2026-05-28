@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Login{% endblock %}
+{% block head %}
+<style>
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden;background:#f5a200}
+.login-wrap::before{content:'';position:absolute;inset:-6%;background-image:url('/static/honeycomb.png');background-size:cover;background-repeat:no-repeat;background-position:center;animation:honeydrift 30s ease-in-out infinite alternate;pointer-events:none;z-index:0}
+@keyframes honeydrift{0%{transform:translate(0,0)}25%{transform:translate(-2.5%,1.5%)}50%{transform:translate(1%,-2%)}75%{transform:translate(2.5%,1%)}100%{transform:translate(-1%,2%)}}
+.login-wrap::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 55% 50% at 50% 50%,rgba(255,240,100,.15) 0%,transparent 70%);pointer-events:none;z-index:0}
+.login-outer{position:relative;z-index:2;width:100%;max-width:420px}
+.login-card{background:#fff;border-radius:24px;box-shadow:0 32px 80px rgba(80,30,0,.35),0 0 0 1px rgba(255,183,3,.2);overflow:hidden}
+.card-header{background:linear-gradient(150deg,#FFB300 0%,#FF8C00 100%);padding:32px 32px 26px;text-align:center}
+.card-header-icon{font-size:40px;display:inline-block;margin-bottom:8px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.2));animation:iconBounce 3s ease-in-out infinite}
+@keyframes iconBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.login-logo{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:800;color:#fff;letter-spacing:-.5px;text-shadow:0 2px 10px rgba(0,0,0,.2)}
+.login-logo span{color:#1a1a2e}
+.login-sub{font-size:13px;color:rgba(255,255,255,.75);margin-top:5px;font-weight:600}
+.card-body{padding:0 0 28px}
+.tabs{display:flex;border-bottom:1.5px solid #f0e6d0}
+.tab{flex:1;padding:15px;text-align:center;font-weight:700;font-size:14px;cursor:pointer;color:#bba070;border:none;background:none;transition:.2s;border-bottom:2.5px solid transparent;margin-bottom:-1px;font-family:'Nunito',sans-serif}
+.tab.active{color:#d97706;border-bottom-color:#FF8C00}
+.tab:hover:not(.active){color:#d97706}
+.form-body{padding:22px 32px 8px}
+.form-panel{display:none}
+.form-panel.active{display:block;animation:fSlide .3s ease}
+@keyframes fSlide{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:13px;font-weight:700;color:#7c5c30;margin-bottom:7px}
+.field input{width:100%;padding:13px 16px;border:1.5px solid #e8d5b0;border-radius:12px;background:#fafaf8;color:#3a2000;font-family:'Nunito',sans-serif;font-size:15px;outline:none;transition:.2s;box-sizing:border-box}
+.field input::placeholder{color:#c9a87a}
+.field input:focus{border-color:#FF8C00;box-shadow:0 0 0 3px rgba(255,140,0,.15);background:#fff}
+.field-hint{font-size:11px;color:#bba070;margin-top:5px}
+
+/* Password strength */
+.pw-strength{height:4px;border-radius:30px;margin-top:8px;background:#f0e6d0;overflow:hidden}
+.pw-strength-bar{height:100%;border-radius:30px;width:0%;transition:.3s}
+.pw-strength-label{font-size:11px;margin-top:4px;font-weight:700}
+
+/* Role selector — no admin */
+.role-wrap{display:flex;gap:8px;margin-bottom:2px}
+.role-btn{flex:1;padding:10px;border:2px solid #e8d5b0;border-radius:10px;text-align:center;cursor:pointer;font-weight:700;font-size:13px;background:transparent;color:#bba070;transition:.2s;font-family:'Nunito',sans-serif}
+.role-btn.selected{border-color:var(--honey,#FFB300);background:rgba(255,183,3,.18);color:#c96a00}
+
+.submit-btn{display:block;width:100%;margin-top:8px;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,#FFD84D 0%,#FF8C00 100%);color:#1a1a2e;font-family:'Nunito',sans-serif;font-size:16px;font-weight:800;cursor:pointer;transition:.25s;box-shadow:0 6px 22px rgba(255,140,0,.45)}
+.submit-btn:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(255,140,0,.6)}
+.submit-btn:active{transform:translateY(0)}
+.hint{text-align:center;font-size:13px;color:#bba070;margin:14px 0 0}
+.hint a{color:#d97706;font-weight:800;cursor:pointer;text-decoration:none}
+.hint a:hover{text-decoration:underline}
+.flash-inner{margin:16px 0 -6px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600}
+.flash-inner.error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#b91c1c}
+.flash-inner.success{background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);color:#15803d}
+@media(max-width:480px){.card-header{padding:24px 20px 22px}.form-body{padding:18px 20px 6px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="login-outer">
+    <div class="login-card">
+
+      <div class="card-header">
+        <div class="card-header-icon">🐝</div>
+        <div class="login-logo">Bee<span>Wise</span></div>
+        <div class="login-sub">Test your knowledge. Climb the hive.</div>
+      </div>
+
+      <div class="card-body">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}{% for cat, msg in messages %}
+        <div class="flash-inner {{ cat }}" style="margin-left:32px;margin-right:32px">{{ msg }}</div>
+        {% endfor %}{% endif %}
+        {% endwith %}
+
+        <div class="tabs">
+          <button class="tab active" id="tab-login" onclick="switchTab('login')">Log In</button>
+          <button class="tab" id="tab-register" onclick="switchTab('register')">Register</button>
+        </div>
+
+        <!-- Login -->
+        <div class="form-panel active" id="panel-login">
+          <div class="form-body">
+            <form method="post">
+              <input type="hidden" name="action" value="login">
+              <div class="field">
+                <label>Username</label>
+                <input type="text" name="username" placeholder="Enter your username" required autocomplete="username">
+              </div>
+              <div class="field">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Enter your password" required autocomplete="current-password">
+              </div>
+              <button type="submit" class="submit-btn">Enter the Hive 🍯</button>
+            </form>
+            <p class="hint">No account? <a onclick="switchTab('register')">Register here</a></p>
+          </div>
+        </div>
+
+        <!-- Register -->
+        <div class="form-panel" id="panel-register">
+          <div class="form-body">
+            <form method="post" id="regForm" onsubmit="return validateReg()">
+              <input type="hidden" name="action" value="register">
+              <div class="field">
+                <label>Username</label>
+                <input type="text" name="username" placeholder="Choose a username" required autocomplete="username" minlength="3" maxlength="30">
+              </div>
+              <div class="field">
+                <label>Password</label>
+                <input type="password" name="password" id="pwInput" placeholder="Min. 6 chars with letters & numbers"
+                       required autocomplete="new-password" oninput="checkStrength(this.value)">
+                <div class="pw-strength"><div class="pw-strength-bar" id="pwBar"></div></div>
+                <div class="pw-strength-label" id="pwLabel" style="color:#bba070"> </div>
+              </div>
+
+              <!-- Everyone registers as student — teachers contact admin -->
+              <div style="margin-bottom:14px;padding:12px 14px;background:rgba(255,183,3,.08);border:1px solid rgba(255,183,3,.25);border-radius:12px;font-size:12px;color:#7a5a00">
+                <div style="font-weight:800;margin-bottom:4px;font-size:13px">👩‍🏫 Want to be a Teacher?</div>
+                <div>All accounts start as Student. To get Teacher access, contact us:</div>
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+                  <a href="mailto:beewise.quiz2026@gmail.com" style="color:#FB8500;font-weight:700;text-decoration:none">📧 beewise.quiz2026@gmail.com</a>
+                  <a href="tel:+919876543210" style="color:#FB8500;font-weight:700;text-decoration:none">📞 +91 98765 43210</a>
+                </div>
+              </div>
+
+              <!-- Hidden admin code field — not shown in UI -->
+              <input type="hidden" name="admin_code" id="adminCodeHidden" value="">
+
+              <button type="submit" class="submit-btn">Create Account 🐝</button>
+            </form>
+            <p class="hint">Already a bee? <a onclick="switchTab('login')">Log in</a></p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.form-panel').forEach(e=>e.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  document.getElementById('panel-'+t).classList.add('active');
+  history.replaceState(null,'','?tab='+t);
+}
+(function(){ var t=new URLSearchParams(window.location.search).get('tab'); if(t==='register') switchTab('register'); })();
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}{% for cat,msg in messages %}
+{% if 'taken' in msg or 'characters' in msg or 'letters' in msg or 'Invalid' in msg or 'Teacher' in msg %}switchTab('register');{% endif %}
+{% endfor %}{% endif %}
+{% endwith %}
+
+function checkStrength(pw){
+  const bar=document.getElementById('pwBar');
+  const lbl=document.getElementById('pwLabel');
+  const hasLetter=/[A-Za-z]/.test(pw);
+  const hasNum=/[0-9]/.test(pw);
+  const long = pw.length>=6;
+  const vlong = pw.length>=10;
+  let score=0;
+  if(pw.length>=6) score++;
+  if(hasLetter&&hasNum) score++;
+  if(vlong) score++;
+  if(pw.length>=12&&/[^A-Za-z0-9]/.test(pw)) score++;
+  const colors=['#f87171','#fb923c','#fbbf24','#4ade80'];
+  const labels=['Too short','Weak','Good','Strong'];
+  const widths=['25%','50%','75%','100%'];
+  if(pw.length===0){bar.style.width='0';lbl.textContent='';return;}
+  const i=Math.min(score, colors.length-1);
+  bar.style.width=widths[i]; bar.style.background=colors[i];
+  lbl.textContent=labels[i]; lbl.style.color=colors[i];
+}
+
+function validateReg(){
+  const pw=document.getElementById('pwInput').value;
+  if(pw.length<6){ alert('Password must be at least 6 characters.'); return false; }
+  if(!/[A-Za-z]/.test(pw)||!/[0-9]/.test(pw)){ alert('Password must contain both letters and numbers.'); return false; }
+  return true;
+}
+</script>
+{% endblock %}

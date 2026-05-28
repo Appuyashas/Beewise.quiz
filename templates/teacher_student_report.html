@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ student.username }} — Student Report | BeeWise.quiz{% endblock %}
+{% block head %}
+<style>
+body:not(.bee-mode){--card-bg:#1e1e2e;--text-primary:#fff;--text-muted:rgba(255,255,255,.45);--stat-bg:rgba(255,255,255,.06);--stat-border:rgba(255,183,3,.18);--item-border:rgba(255,255,255,.08);--shadow:0 8px 24px rgba(0,0,0,.3)}
+body:not(.bee-mode) .progress-bar-bg{background:rgba(255,255,255,.08) !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-wrap">
+<div style="max-width:860px;margin:0 auto;padding:24px 16px 60px">
+
+  <a href="{{ back_url }}" style="display:inline-flex;align-items:center;gap:6px;color:var(--honey);text-decoration:none;font-weight:700;margin-bottom:20px;font-size:14px">← Back to Dashboard</a>
+
+  <!-- Header -->
+  <div style="background:var(--card-bg);border-radius:var(--radius);padding:24px;margin-bottom:18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:var(--shadow)">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--honey);display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0">{{ student.avatar or '🐝' }}</div>
+    <div style="flex:1">
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--text-primary);margin-bottom:4px">{{ student.username }}</h1>
+      {% if student.streak %}<div style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,183,3,.12);border:1px solid rgba(255,183,3,.3);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;color:var(--honey)">🔥 {{ student.streak }} day streak</div>{% endif %}
+    </div>
+    {% if stats %}
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:12px;padding:12px 16px;text-align:center;min-width:70px">
+        <div style="font-size:20px;font-weight:800;color:var(--honey)">{{ stats.games or 0 }}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Games</div>
+      </div>
+      <div style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:12px;padding:12px 16px;text-align:center;min-width:70px">
+        <div style="font-size:20px;font-weight:800;color:var(--honey)">{{ stats.avg_pct or 0 }}%</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Avg</div>
+      </div>
+      <div style="background:var(--stat-bg);border:1px solid var(--stat-border);border-radius:12px;padding:12px 16px;text-align:center;min-width:70px">
+        <div style="font-size:20px;font-weight:800;color:#22c55e">{{ stats.best or 0 }}%</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Best</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+    <!-- Category breakdown -->
+    <div style="background:var(--card-bg);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)">
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:14px">📊 Subject Breakdown</h2>
+      {% if cat_stats %}
+        {% for cat in cat_stats %}
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="font-size:12px;font-weight:600;color:var(--text-primary)">{{ cat.category }}</span>
+            <span style="font-size:12px;font-weight:700;color:{% if cat.pct>=80 %}#22c55e{% elif cat.pct>=60 %}var(--honey){% else %}#ef4444{% endif %}">{{ cat.pct }}%</span>
+          </div>
+          <div style="height:6px;background:var(--stat-bg);border-radius:10px;overflow:hidden">
+            <div style="height:100%;width:{{ cat.pct }}%;background:{% if cat.pct>=80 %}#22c55e{% elif cat.pct>=60 %}var(--honey){% else %}#ef4444{% endif %};border-radius:10px"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">{{ cat.total }} answered · {{ cat.correct }} correct</div>
+        </div>
+        {% endfor %}
+      {% else %}<p style="color:var(--text-muted);font-size:13px">No data yet.</p>{% endif %}
+    </div>
+
+    <!-- Quiz room results (teacher-assigned only) -->
+    <div style="background:var(--card-bg);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)">
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:14px">🎮 Your Quiz Room Results</h2>
+      {% if room_results %}
+        {% for r in room_results %}
+        <div style="padding:10px 0;border-bottom:1px solid var(--item-border)">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary)">{{ r.room_name }}</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:700;color:{% if r.pct>=80 %}#22c55e{% elif r.pct>=60 %}var(--honey){% else %}#ef4444{% endif %}">{{ r.pct }}%</span>
+            <span style="font-size:11px;color:var(--text-muted)">{{ r.score }}/{{ r.total }}</span>
+            <span style="font-size:11px;color:var(--text-muted)">⏱ {{ r.time_taken }}s</span>
+            {% if r.finished %}<span style="font-size:11px;color:var(--text-muted)">{{ r.finished[:10] }}</span>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}<p style="color:var(--text-muted);font-size:13px">No quiz room results yet.</p>{% endif %}
+      <div style="margin-top:12px;padding:10px;background:rgba(255,183,3,.08);border:1px solid rgba(255,183,3,.2);border-radius:10px;font-size:11px;color:var(--text-muted)">
+        🔒 Personal quiz history (BeeWise, RapidBee, Practice) is private and not shown here.
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+{% endblock %}

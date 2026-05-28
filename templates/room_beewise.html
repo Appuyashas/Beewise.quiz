@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – {{ title }}{% endblock %}
+{% block head %}
+<style>
+body:not(.bee-mode) .quiz-card{background:#1e1e2e !important;box-shadow:0 4px 14px rgba(0,0,0,.3) !important}
+body:not(.bee-mode) .q-text{color:#fff !important}
+body:not(.bee-mode) .option-label{background:rgba(255,255,255,.05) !important;border-color:rgba(255,255,255,.1) !important;color:rgba(255,255,255,.85) !important}
+body:not(.bee-mode) .option-label:hover{background:rgba(255,183,3,.1) !important;border-color:rgba(255,183,3,.35) !important;color:#fff !important}
+body:not(.bee-mode) .topbar{background:#1e1e2e !important;color:#fff !important;box-shadow:0 4px 14px rgba(0,0,0,.4) !important}
+body:not(.bee-mode) .timer-num{color:#fff !important}
+.quiz-wrap{max-width:760px;margin:0 auto;padding:28px 20px 60px}
+.topbar{display:flex;justify-content:space-between;align-items:center;background:#fff;padding:14px 22px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-bottom:24px;font-weight:700;color:#1a1a2e}
+.timer-box{display:flex;align-items:center;gap:8px;font-size:17px}
+.timer-num{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:#1a1a2e;min-width:36px;text-align:center}
+.timer-num.warn{color:#ef4444;animation:pulse .5s infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.quiz-card{background:#fff;padding:22px 24px;margin-bottom:16px;border-radius:18px;box-shadow:0 8px 20px rgba(0,0,0,.1);transition:.2s}
+.quiz-card:hover{transform:translateY(-2px)}
+.q-text{font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:14px}
+.q-num{color:#a855f7;font-size:13px;font-weight:800;margin-bottom:6px}
+.option-label{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:#fafafa;border:2px solid #f3f4f6;cursor:pointer;transition:.2s;margin-bottom:8px;font-size:15px;font-weight:600;color:#374151}
+.option-label:hover{background:#faf5ff;border-color:#a855f7;color:#1a1a2e}
+.option-label:has(input:checked){background:#f3e8ff;border-color:#a855f7;color:#1a1a2e}
+input[type="radio"]{accent-color:#a855f7;width:16px;height:16px;flex-shrink:0}
+.submit-wrap{text-align:center;margin-top:28px}
+.submit-btn{padding:16px 40px;border:none;border-radius:40px;font-family:'Nunito',sans-serif;font-size:18px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;box-shadow:0 8px 24px rgba(168,85,247,.4);transition:.25s}
+.submit-btn:hover{transform:translateY(-4px);box-shadow:0 14px 32px rgba(168,85,247,.5)}
+@media(max-width:600px){.quiz-wrap{padding:16px 12px 80px}.topbar{padding:10px 14px;flex-wrap:wrap;gap:8px}.q-text{font-size:14px}.option-label{font-size:13px;padding:10px 12px}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="quiz-wrap">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🎮</span>
+      <div>
+        <div style="font-size:14px;font-weight:800">{{ title }}</div>
+        <div style="font-size:12px;color:#6b7280;font-weight:600">{{ total }} Questions</div>
+      </div>
+    </div>
+    <div class="timer-box">
+      <span>⏱</span>
+      <span class="timer-num" id="timerEl">--:--</span>
+    </div>
+  </div>
+
+  <form method="post" action="/room/quiz" id="quizForm">
+    {% for i in range(questions|length) %}
+    {% set q = questions[i] %}
+    <div class="quiz-card">
+      <div class="q-num">Q{{ i+1 }}</div>
+      <div class="q-text">{{ q.q }}</div>
+      {% for j in range(q.options|length) %}
+      <label class="option-label">
+        <input type="radio" name="q{{ i }}" value="{{ j }}">
+        <span>{{ q.options[j] }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <div class="submit-wrap">
+      <button type="submit" class="submit-btn">✅ Submit Quiz</button>
+    </div>
+  </form>
+</div>
+
+<script>
+let left = {{ left }};
+const el = document.getElementById('timerEl');
+function fmt(s){ return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0'); }
+el.textContent = fmt(left);
+const t = setInterval(()=>{
+  left--;
+  el.textContent = fmt(left);
+  if(left < 60) el.classList.add('warn');
+  if(left <= 0){ clearInterval(t); document.getElementById('quizForm').submit(); }
+},1000);
+</script>
+{% endblock %}

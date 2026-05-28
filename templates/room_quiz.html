@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – {{ title }}{% endblock %}
+{% block head %}
+<style>
+.rq-wrap{max-width:680px;margin:0 auto;padding:20px 16px 100px}
+.rq-top{display:flex;align-items:center;justify-content:space-between;
+  background:rgba(255,255,255,.06);border:1px solid rgba(52,211,153,.25);
+  border-radius:16px;padding:14px 20px;margin-bottom:16px}
+.rq-title{font-size:14px;font-weight:800;color:#34d399}
+.rq-timer{background:#1a1a2e;color:#34d399;padding:7px 16px;
+  border-radius:20px;font-family:'Space Grotesk',sans-serif;
+  font-size:16px;font-weight:700;border:2px solid rgba(52,211,153,.3)}
+.rq-timer.warn{border-color:#f59e0b;color:#f59e0b}
+.rq-timer.danger{border-color:#ef4444;color:#ef4444;animation:pulse .6s ease-in-out infinite alternate}
+@keyframes pulse{0%{opacity:1}100%{opacity:.5}}
+.exit-btn{color:rgba(255,255,255,.4);text-decoration:none;font-size:13px;
+  font-weight:700;padding:6px 12px;border-radius:8px;transition:.2s}
+.exit-btn:hover{color:#ef4444;background:rgba(239,68,68,.1)}
+.prog-bg{height:5px;background:rgba(255,255,255,.08);border-radius:5px;margin-bottom:6px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,#34d399,#059669);border-radius:5px;transition:.4s}
+.prog-txt{text-align:right;font-size:11px;color:rgba(255,255,255,.35);font-weight:700;margin-bottom:14px}
+.rq-card{background:rgba(255,255,255,.06);border:1px solid rgba(52,211,153,.15);
+  border-radius:20px;padding:28px 24px;margin-bottom:16px}
+.rq-cat{display:inline-block;background:rgba(52,211,153,.15);color:#34d399;
+  padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:10px}
+.rq-qnum{font-size:12px;color:rgba(255,255,255,.4);font-weight:700;margin-bottom:8px;text-transform:uppercase}
+.rq-qtext{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;
+  color:#fff;line-height:1.45;margin-bottom:24px}
+.rq-opt{display:flex;align-items:center;gap:14px;width:100%;
+  background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);
+  border-radius:14px;padding:14px 16px;cursor:pointer;transition:.2s;
+  margin-bottom:10px;text-align:left;font-family:'Nunito',sans-serif}
+.rq-opt:hover{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.4)}
+.rq-opt.selected{background:#059669 !important;border-color:#34d399 !important}
+.rq-opt.selected .opt-letter{background:#fff !important;color:#059669 !important}
+.rq-opt.selected .opt-text{color:#fff !important}
+.opt-letter{width:32px;height:32px;border-radius:50%;
+  background:rgba(52,211,153,.15);color:#34d399;font-weight:800;font-size:13px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.opt-text{font-size:15px;font-weight:600;color:rgba(255,255,255,.85)}
+.submit-btn{width:100%;padding:15px;border:none;border-radius:14px;
+  background:linear-gradient(135deg,#34d399,#059669);
+  color:#fff;font-family:'Nunito',sans-serif;font-size:17px;font-weight:800;
+  cursor:pointer;transition:.25s;margin-top:4px}
+.submit-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(52,211,153,.4)}
+.submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+/* Shuffle badge */
+.shuffle-badge{display:inline-flex;align-items:center;gap:6px;
+  background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);
+  border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;
+  color:#34d399;margin-bottom:14px}
+/* Bee mode */
+body.bee-mode .rq-top{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .rq-title{color:#c05000 !important}
+body.bee-mode .rq-timer{background:#1a1a2e !important}
+body.bee-mode .rq-card{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .rq-qtext{color:#1a1a2e !important}
+body.bee-mode .rq-opt{background:#fffdf0 !important;border-color:#fde68a !important}
+body.bee-mode .opt-text{color:#1a1a2e !important}
+body.bee-mode .rq-qnum{color:#7a5a00 !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="rq-wrap">
+  <div class="rq-top">
+    <div class="rq-title">🎮 {{ title }}</div>
+    <div class="rq-timer" id="timerEl">{{ '%d:%02d'|format(left//60,left%60) }}</div>
+    <a href="/mode" class="exit-btn" onclick="return confirm('Exit quiz? Your progress will be lost.')">&#x2715; Exit</a>
+  </div>
+  <div class="prog-bg"><div class="prog-fill" style="width:{{ (num/total*100)|round(1) }}%"></div></div>
+  <div class="prog-txt">Question {{ num }} of {{ total }}</div>
+
+  <div class="shuffle-badge">&#x1F500; Your questions are uniquely shuffled</div>
+
+  <form method="post" id="qform">
+    <div class="rq-card">
+      <div class="rq-cat">{{ q.cat }}</div>
+      <div class="rq-qnum">Question {{ num }} of {{ total }}</div>
+      <div class="rq-qtext">{{ q.q }}</div>
+      {% for opt in q.options %}
+      <button type="button" class="rq-opt" onclick="pick(this,{{ loop.index0 }})" data-idx="{{ loop.index0 }}">
+        <span class="opt-letter">{{ ['A','B','C','D'][loop.index0] }}</span>
+        <span class="opt-text">{{ opt }}</span>
+      </button>
+      {% endfor %}
+      <input type="hidden" name="answer" id="ansInput" value="-1">
+    </div>
+    <button type="submit" class="submit-btn" id="subBtn" disabled>Choose an answer first</button>
+  </form>
+</div>
+
+<script>
+var t = {{ left }};
+var el = document.getElementById('timerEl');
+function tick(){
+  if(t <= 0){ document.getElementById('qform').submit(); return; }
+  t--;
+  var m=Math.floor(t/60), s=t%60;
+  el.textContent = m+':'+(s<10?'0':'')+s;
+  el.className = 'rq-timer' + (t<=10?' danger':t<=20?' warn':'');
+  setTimeout(tick,1000);
+}
+setTimeout(tick,1000);
+function pick(btn,idx){
+  document.querySelectorAll('.rq-opt').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('ansInput').value=idx;
+  var sb=document.getElementById('subBtn');
+  sb.disabled=false;
+  sb.textContent='Submit Answer \u2192';
+}
+</script>
+{% endblock %}

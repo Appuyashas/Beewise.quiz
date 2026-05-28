@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Join Quiz Room{% endblock %}
+{% block head %}
+<style>
+.rj-wrap{max-width:480px;margin:0 auto;padding:80px 20px 100px;text-align:center}
+.rj-icon{font-size:72px;display:block;margin-bottom:16px;animation:rb 2s ease-in-out infinite}
+@keyframes rb{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.rj-title{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;color:#fff;margin-bottom:8px}
+.rj-sub{font-size:15px;color:rgba(255,255,255,.45);margin-bottom:36px}
+.rj-card{background:rgba(255,255,255,.06);border:1.5px solid rgba(52,211,153,.25);
+  border-radius:24px;padding:32px 28px}
+.rj-card h2{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;
+  color:#34d399;margin-bottom:20px}
+.rj-input{width:100%;padding:18px 20px;border:2px solid rgba(52,211,153,.3);
+  border-radius:16px;background:rgba(255,255,255,.07);
+  color:#fff;font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;
+  letter-spacing:8px;text-align:center;outline:none;transition:.2s;
+  text-transform:uppercase;box-sizing:border-box}
+.rj-input:focus{border-color:#34d399;background:rgba(52,211,153,.08)}
+.rj-input::placeholder{color:rgba(255,255,255,.2);letter-spacing:4px;font-size:18px}
+.rj-btn{width:100%;padding:16px;border:none;border-radius:14px;
+  background:linear-gradient(135deg,#34d399,#059669);
+  color:#fff;font-family:'Nunito',sans-serif;font-size:17px;font-weight:800;
+  cursor:pointer;transition:.25s;margin-top:16px}
+.rj-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(52,211,153,.4)}
+.rj-tip{font-size:13px;color:rgba(255,255,255,.3);margin-top:16px;line-height:1.5}
+body.bee-mode .rj-card{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .rj-card h2{color:#c05000 !important}
+body.bee-mode .rj-title{color:#1a1a2e !important}
+body.bee-mode .rj-sub{color:#5a4a00 !important}
+body.bee-mode .rj-input{background:#fff !important;border-color:#ffd84d !important;color:#1a1a2e !important}
+body.bee-mode .rj-tip{color:#7a5a00 !important}
+body.bee-mode .rj-btn{background:linear-gradient(135deg,#FFB703,#FB8500) !important;color:#1a1a2e !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="rj-wrap">
+  <span class="rj-icon">🎮</span>
+  <div class="rj-title">Join a Quiz Room</div>
+  <div class="rj-sub">Enter the 6-character code your teacher gave you</div>
+  <div class="rj-card">
+    <h2>Enter Room Code</h2>
+    <form method="post">
+      <input type="text" name="room_code" class="rj-input"
+             placeholder="ABC123" maxlength="6" required
+             oninput="this.value=this.value.toUpperCase()" autocomplete="off">
+      <button type="submit" class="rj-btn">Join Room &rarr;</button>
+    </form>
+    <div class="rj-tip">
+      Your questions will be shuffled uniquely for you.<br>
+      Different order than everyone else — no copying possible!
+    </div>
+  </div>
+</div>
+{% endblock %}

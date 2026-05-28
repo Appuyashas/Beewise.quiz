@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – CustomizeBee Quiz{% endblock %}
+{% block head %}
+<style>
+/* ── reuse practice/rapidbee style ── */
+.rb-wrap{max-width:700px;margin:0 auto;padding:20px 16px 100px}
+.rb-topbar{display:flex;align-items:center;justify-content:space-between;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,183,3,.2);
+  border-radius:16px;padding:14px 20px;margin-bottom:16px}
+.rb-left{display:flex;align-items:center;gap:10px}
+.rb-mode-badge{font-size:13px;font-weight:800;color:#fff}
+.rb-cat{background:rgba(255,183,3,.2);color:#FFB703;padding:3px 12px;
+  border-radius:20px;font-size:12px;font-weight:700}
+.timer-pill{background:#1a1a2e;color:#FFD84D;padding:6px 14px;
+  border-radius:20px;font-family:'Space Grotesk',sans-serif;
+  font-size:15px;font-weight:700;border:2px solid rgba(255,183,3,.3)}
+.exit-btn{color:rgba(255,255,255,.4);text-decoration:none;font-size:13px;font-weight:700;
+  padding:6px 12px;border-radius:8px;transition:.2s}
+.exit-btn:hover{color:#ef4444;background:rgba(239,68,68,.1)}
+.prog-bar-bg{height:5px;background:rgba(255,255,255,.08);border-radius:5px;
+  margin-bottom:16px;overflow:hidden}
+.prog-bar-fill{height:100%;background:linear-gradient(90deg,#FFD84D,#FB8500);
+  border-radius:5px;transition:width .4s ease}
+.prog-count{text-align:right;font-size:11px;color:rgba(255,255,255,.35);
+  font-weight:700;margin-top:4px}
+.rb-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,183,3,.12);
+  border-radius:20px;padding:28px 24px;margin-bottom:16px}
+.q-num{font-size:12px;font-weight:700;color:#FB8500;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.q-text{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;
+  color:#fff;line-height:1.45;margin-bottom:24px}
+.rb-option{display:flex;align-items:center;gap:14px;width:100%;
+  background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);
+  border-radius:14px;padding:14px 16px;cursor:pointer;transition:.2s;margin-bottom:10px;
+  text-align:left;font-family:'Nunito',sans-serif}
+.rb-option:hover:not(.locked){background:rgba(255,183,3,.1);border-color:rgba(255,183,3,.4)}
+.rb-option.selected{background:#FB8500 !important;border-color:#c05000 !important;transform:translateX(4px)}
+.rb-option.selected .opt-letter{background:#1a1a2e !important;color:#FFD84D !important;border-color:#1a1a2e !important}
+.rb-option.selected .opt-text{color:#FFD84D !important;font-weight:700 !important}
+.rb-option.selected *{color:#FFD84D !important}
+.rb-option.selected .opt-letter{color:#FFD84D !important}
+body.bee-mode .rb-option.selected .opt-text{color:#FFD84D !important}
+body.bee-mode .rb-option.selected *{color:#FFD84D !important}
+body.bee-mode .rb-option.selected .opt-letter{color:#FFD84D !important;background:#1a1a2e !important}
+.opt-letter{width:32px;height:32px;border-radius:50%;background:rgba(255,183,3,.15);
+  color:#FFB703;font-weight:800;font-size:13px;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0}
+.opt-text{font-size:15px;font-weight:600;color:rgba(255,255,255,.85)}
+.check-btn{width:100%;padding:15px;border:none;border-radius:14px;
+  font-family:'Nunito',sans-serif;font-size:17px;font-weight:800;cursor:pointer;
+  background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;
+  transition:.25s;margin-top:6px}
+.check-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(251,133,0,.4)}
+.check-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+/* Bee mode */
+body.bee-mode .rb-topbar{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .rb-mode-badge{color:#1a1a2e !important}
+body.bee-mode .timer-pill{background:#1a1a2e !important;color:#FFD84D !important}
+body.bee-mode .rb-card{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .q-text{color:#1a1a2e !important}
+body.bee-mode .rb-option{background:#fffdf0 !important;border-color:#fde68a !important}
+body.bee-mode .opt-text{color:#1a1a2e !important}
+body.bee-mode .opt-letter{background:#fde68a !important;color:#7a5a00 !important}
+body.bee-mode .rb-option.selected{background:#FFD84D !important;border-color:#FB8500 !important}
+body.bee-mode .rb-option.selected .opt-text{color:#1a1a2e !important;font-weight:700 !important}
+body.bee-mode .rb-option.selected .opt-letter{background:#FB8500 !important;color:#1a1a2e !important;border-color:#FB8500 !important}
+body.bee-mode .prog-bar-bg{background:#ffe9a0 !important}
+body.bee-mode .prog-count{color:#7a5a00 !important}
+
+/* Exit button bee mode */
+body.bee-mode .exit-btn{color:#c05000 !important;border:1px solid rgba(192,80,0,.3) !important}
+body.bee-mode .rb-cat{background:rgba(251,133,0,.2) !important;color:#c05000 !important}
+
+/* Timer picker */
+.timer-picker-bar{display:flex;align-items:center;justify-content:center;gap:8px;
+  flex-wrap:wrap;padding:10px 16px;background:rgba(255,255,255,.04);
+  border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:0}
+.tp-label{font-size:12px;font-weight:700;color:rgba(255,255,255,.4)}
+.tp-btn{padding:5px 14px;border-radius:20px;background:rgba(255,255,255,.07);
+  color:rgba(255,255,255,.6);font-size:12px;font-weight:700;
+  text-decoration:none;transition:.2s;border:1.5px solid transparent}
+.tp-btn:hover{background:rgba(255,183,3,.15);color:#FFD84D;border-color:rgba(255,183,3,.3)}
+.tp-btn.active{background:rgba(255,183,3,.2);color:#FFD84D;border-color:rgba(255,183,3,.5)}
+body.bee-mode .timer-picker-bar{background:rgba(255,255,255,.6) !important;border-color:#fde68a !important}
+body.bee-mode .tp-label{color:#5a4a00 !important}
+body.bee-mode .tp-btn{background:#fff !important;color:#7a5a00 !important;border-color:#fde68a !important}
+body.bee-mode .tp-btn.active{background:#FB8500 !important;color:#fff !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="timer-picker-bar">
+  <span class="tp-label">Time:</span>
+  <a class="tp-btn {% if left > 540 %}active{% endif %}" 
+     href="javascript:void(0)" onclick="setTimer(600)">No rush</a>
+  <a class="tp-btn {% if left <= 300 and left > 170 %}active{% endif %}"
+     href="javascript:void(0)" onclick="setTimer(300)">5 min</a>
+  <a class="tp-btn {% if left <= 180 and left > 110 %}active{% endif %}"
+     href="javascript:void(0)" onclick="setTimer(180)">3 min</a>
+  <a class="tp-btn {% if left <= 120 and left > 50 %}active{% endif %}"
+     href="javascript:void(0)" onclick="setTimer(120)">2 min</a>
+  <a class="tp-btn {% if left <= 60 %}active{% endif %}"
+     href="javascript:void(0)" onclick="setTimer(60)">1 min</a>
+</div>
+<div class="rb-wrap">
+  <div class="rb-topbar">
+    <div class="rb-left">
+      <span class="rb-mode-badge">🎨 CustomizeBee</span>
+      <span class="rb-cat">{{ q.cat }}</span>
+    </div>
+    <div class="timer-pill" id="timerPill">{{ '%d:%02d'|format(left//60, left%60) }}</div>
+    <a href="/customizebee" class="exit-btn" onclick="return confirm('Exit quiz?')">✕ Exit</a>
+  </div>
+
+  <div class="prog-bar-bg">
+    <div class="prog-bar-fill" style="width:{{ (num/total*100)|round(1) }}%"></div>
+  </div>
+  <div class="prog-count">{{ num }} / {{ total }}</div>
+
+  <form method="post" id="qform">
+    <div class="rb-card">
+      <div class="q-num">Question {{ num }} of {{ total }}</div>
+      <div class="q-text">{{ q.q }}</div>
+
+      {% for opt in q.options %}
+      <button type="button" class="rb-option"
+              onclick="selectOpt(this, {{ loop.index0 }})"
+              data-idx="{{ loop.index0 }}">
+        <span class="opt-letter">{{ ['A','B','C','D'][loop.index0] }}</span>
+        <span class="opt-text">{{ opt }}</span>
+      </button>
+      {% endfor %}
+
+      <input type="hidden" name="answer" id="answerInput" value="-1">
+    </div>
+
+    <button type="submit" class="check-btn" id="submitBtn" disabled>
+      Select an answer first
+    </button>
+  </form>
+</div>
+
+<script>
+var timeLeft = {{ left }};
+function setTimer(secs){
+  timeLeft = secs;
+  document.getElementById('timerPill').textContent =
+    Math.floor(secs/60)+':'+(secs%60<10?'0':'')+secs%60;
+}
+var timerEl  = document.getElementById('timerPill');
+
+function tick(){
+  if(timeLeft <= 0){
+    document.getElementById('qform').submit();
+    return;
+  }
+  timeLeft--;
+  var m = Math.floor(timeLeft/60), s = timeLeft%60;
+  timerEl.textContent = m + ':' + (s<10?'0':'')+s;
+  if(timeLeft <= 60) timerEl.style.background='#ef4444';
+  else if(timeLeft <= 120) timerEl.style.background='#f59e0b';
+  setTimeout(tick, 1000);
+}
+setTimeout(tick, 1000);
+
+function selectOpt(btn, idx){
+  document.querySelectorAll('.rb-option').forEach(b=>{
+    b.classList.remove('selected');
+  });
+  btn.classList.add('selected');
+  document.getElementById('answerInput').value = idx;
+  var sb = document.getElementById('submitBtn');
+  sb.disabled = false;
+  sb.textContent = '✓ Submit Answer';
+}
+</script>
+{% endblock %}

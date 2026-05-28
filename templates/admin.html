@@ -1,0 +1,1134 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Admin Panel
+<!-- Edit Question Modal -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#1a1a2e;border:1px solid rgba(255,183,3,.3);border-radius:20px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3 style="color:#fff;font-size:16px;margin-bottom:18px">✏️ Edit Question</h3>
+    <form method="post" id="editForm">
+      <div class="form-grid">
+        <div class="f-field full"><label>Question</label><input type="text" name="question" id="editQ" required></div>
+        <div class="f-field"><label>Option A (Correct)</label><input type="text" name="opt0" id="editO0" required></div>
+        <div class="f-field"><label>Option B</label><input type="text" name="opt1" id="editO1" required></div>
+        <div class="f-field"><label>Option C</label><input type="text" name="opt2" id="editO2" required></div>
+        <div class="f-field"><label>Option D</label><input type="text" name="opt3" id="editO3" required></div>
+        <div class="f-field">
+          <label>Category</label>
+          <select name="category" id="editCat">
+            {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button type="submit" class="add-btn" style="flex:1">Save Changes ✅</button>
+        <button type="button" onclick="closeEdit()" style="padding:12px 20px;border:1px solid rgba(255,255,255,.2);border-radius:30px;background:none;color:#fff;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function openEdit(id, q, o0, o1, o2, o3, cat){
+  document.getElementById('editQ').value  = q;
+  document.getElementById('editO0').value = o0;
+  document.getElementById('editO1').value = o1;
+  document.getElementById('editO2').value = o2;
+  document.getElementById('editO3').value = o3;
+  document.getElementById('editCat').value = cat;
+  document.getElementById('editForm').action = '/admin/edit_question/' + id;
+  const modal = document.getElementById('editModal');
+  modal.style.display = 'flex';
+}
+function closeEdit(){
+  document.getElementById('editModal').style.display = 'none';
+}
+document.getElementById('editModal').addEventListener('click', function(e){
+  if(e.target === this) closeEdit();
+});
+</script>
+
+{% endblock %}
+{% block head %}
+<style>
+.admin-wrap{max-width:1000px;margin:0 auto;padding:32px 24px 80px}
+.admin-header{margin-bottom:32px}
+.admin-header h2{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#fff;margin-bottom:6px}
+.admin-header p{color:rgba(255,255,255,.45);font-size:14px}
+/* Tabs */
+.a-tabs{display:flex;gap:8px;margin-bottom:28px;flex-wrap:wrap}
+.a-tab{padding:10px 20px;border-radius:30px;border:none;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;cursor:pointer;background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);transition:.2s}
+.a-tab.active{background:var(--honey);color:#1a1a2e}
+.a-tab:hover:not(.active){background:rgba(255,183,3,.15);color:var(--honey)}
+.a-panel{display:none}
+.a-panel.active{display:block;animation:fadeUp .3s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+/* Overview cards */
+.ov-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.ov-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,183,3,.15);border-radius:16px;padding:20px;text-align:center}
+.ov-card .v{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:700;color:var(--honey)}
+.ov-card .l{font-size:12px;color:rgba(255,255,255,.45);font-weight:600;margin-top:4px}
+/* Cat perf bars */
+.cat-row{margin-bottom:12px}
+.cat-lbl{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:rgba(255,255,255,.8);margin-bottom:5px}
+.cat-lbl span{color:rgba(255,255,255,.4)}
+.bar-bg{height:10px;background:rgba(255,255,255,.08);border-radius:10px;overflow:hidden}
+.bar-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,#FFD84D,#FB8500)}
+.bar-fill.low{background:linear-gradient(90deg,#f87171,#ef4444)}
+.bar-fill.mid{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+/* Tables */
+.a-table{width:100%;border-collapse:collapse}
+.a-table th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:rgba(255,255,255,.35);padding:8px 14px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08)}
+.a-table td{padding:12px 14px;font-size:14px;color:rgba(255,255,255,.8);border-bottom:1px solid rgba(255,255,255,.05)}
+.a-table tr:hover td{background:rgba(255,183,3,.06)}
+.badge-grade{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:700}
+.bg-A{background:rgba(16,185,129,.2);color:#10b981}
+.bg-B{background:rgba(59,130,246,.2);color:#3b82f6}
+.bg-C{background:rgba(245,158,11,.2);color:#f59e0b}
+.bg-D{background:rgba(239,68,68,.2);color:#ef4444}
+.cat-pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(255,183,3,.15);color:var(--honey)}
+.fail-high{color:#ef4444;font-weight:700}
+.fail-mid{color:#f59e0b;font-weight:700}
+/* Add question form */
+.add-form{background:rgba(255,255,255,.05);border:1px solid rgba(255,183,3,.2);border-radius:20px;padding:28px}
+.add-form h3{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#fff;margin-bottom:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.f-field{display:flex;flex-direction:column;gap:6px}
+.f-field.full{grid-column:1/-1}
+.f-field label{font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px}
+.f-field input,.f-field select{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;font-family:'Nunito',sans-serif;font-size:14px;color:#fff;outline:none;transition:.2s}
+.f-field input:focus,.f-field select:focus{border-color:var(--honey);background:rgba(255,183,3,.07)}
+.f-field select option{background:#1a1a2e;color:#fff}
+.add-btn{padding:12px 28px;border:none;border-radius:30px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;margin-top:16px;transition:.2s}
+.add-btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(251,133,0,.4)}
+/* Delete btn */
+.del-btn{background:rgba(239,68,68,.15);color:#ef4444;border:none;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:.2s}
+.del-btn:hover{background:#ef4444;color:#fff}
+.section-label{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#fff;margin:0 0 14px}
+.q-preview{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:700px){.ov-row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}}
+
+/* ═══════ BEE MODE ADMIN — FULL OVERRIDE ═══════ */
+body.bee-mode .admin-wrap         { color:#1a1a2e !important; }
+body.bee-mode .admin-header       { background:linear-gradient(135deg,#FFB703,#FB8500) !important; border-radius:16px !important; }
+body.bee-mode .admin-header h2    { color:#1a1a2e !important; }
+body.bee-mode .admin-header p     { color:rgba(26,26,46,.65) !important; }
+/* Tabs */
+body.bee-mode .a-tab              { color:#7a5a00 !important; background:rgba(255,255,255,.5) !important; }
+body.bee-mode .a-tab:hover        { background:#fff !important; color:#c05000 !important; }
+body.bee-mode .a-tab.active       { background:#FB8500 !important; color:#fff !important; }
+/* Overview cards */
+body.bee-mode .ov-card            { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .ov-card .v        { color:#c05000 !important; }
+body.bee-mode .ov-card .l        { color:#5a4a00 !important; }
+/* Category bars — contained, honey colored */
+body.bee-mode .cat-row            { background:rgba(255,255,255,.6); border-radius:10px; padding:8px 12px; margin-bottom:10px; }
+body.bee-mode .cat-lbl            { color:#1a1a2e !important; }
+body.bee-mode .cat-lbl span       { color:#7a5a00 !important; }
+body.bee-mode .bar-bg             { background:#ffe9a0 !important; border-radius:10px !important; overflow:hidden !important; }
+body.bee-mode .bar-fill,
+body.bee-mode .bar-fill.low,
+body.bee-mode .bar-fill.mid       { background:linear-gradient(90deg,#FFB703,#FB8500) !important; }
+/* Tables */
+body.bee-mode .a-table            { border-radius:12px; overflow:hidden; }
+body.bee-mode .a-table th         { background:#1a1a2e !important; color:#FFD84D !important; border-bottom:none !important; }
+body.bee-mode .a-table td         { color:#1a1a2e !important; background:#fff !important; border-bottom:1px solid #fde68a !important; }
+body.bee-mode .a-table tr:last-child td { border-bottom:none !important; }
+body.bee-mode .a-table tr:hover td { background:#fff7e0 !important; }
+/* Labels */
+body.bee-mode .section-label      { color:#1a1a2e !important; font-weight:800 !important; }
+/* Forms */
+body.bee-mode .add-form           { background:rgba(255,255,255,.7) !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .add-form h3        { color:#1a1a2e !important; }
+body.bee-mode .f-field label      { color:#5a4a00 !important; font-weight:700 !important; }
+body.bee-mode .f-field input,
+body.bee-mode .f-field select,
+body.bee-mode .f-field textarea   { background:#fff !important; border:1.5px solid #ffd84d !important; color:#1a1a2e !important; }
+body.bee-mode .f-field input::placeholder { color:#aaa !important; }
+body.bee-mode .f-field select option { background:#fff !important; color:#1a1a2e !important; }
+/* AI generator preview */
+body.bee-mode #aiPreview          { background:rgba(255,255,255,.8) !important; border-radius:14px; padding:12px; }
+body.bee-mode #aiQList > div      { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode #aiQList .question-text,
+body.bee-mode #aiQList div div    { color:#1a1a2e !important; }
+body.bee-mode #aiStatus           { color:#1a1a2e !important; }
+/* Misc */
+body.bee-mode .cat-pill           { background:rgba(251,133,0,.15) !important; color:#c05000 !important; }
+body.bee-mode .badge-grade.bg-A   { background:rgba(16,185,129,.2) !important; color:#065f46 !important; }
+body.bee-mode .badge-grade.bg-B   { background:rgba(59,130,246,.15) !important; color:#1e3a8a !important; }
+body.bee-mode .badge-grade.bg-C   { background:rgba(245,158,11,.15) !important; color:#92400e !important; }
+body.bee-mode .badge-grade.bg-D   { background:rgba(239,68,68,.15) !important; color:#991b1b !important; }
+body.bee-mode .fail-high          { color:#c05000 !important; }
+body.bee-mode .fail-mid           { color:#a05000 !important; }
+body.bee-mode .q-preview          { color:#1a1a2e !important; }
+body.bee-mode p[style*="rgba(255,255,255"]  { color:#5a4a00 !important; }
+body.bee-mode code                { background:rgba(255,183,3,.2) !important; color:#c05000 !important; }
+</style>
+
+<!-- Edit Question Modal -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#1a1a2e;border:1px solid rgba(255,183,3,.3);border-radius:20px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3 style="color:#fff;font-size:16px;margin-bottom:18px">✏️ Edit Question</h3>
+    <form method="post" id="editForm">
+      <div class="form-grid">
+        <div class="f-field full"><label>Question</label><input type="text" name="question" id="editQ" required></div>
+        <div class="f-field"><label>Option A (Correct)</label><input type="text" name="opt0" id="editO0" required></div>
+        <div class="f-field"><label>Option B</label><input type="text" name="opt1" id="editO1" required></div>
+        <div class="f-field"><label>Option C</label><input type="text" name="opt2" id="editO2" required></div>
+        <div class="f-field"><label>Option D</label><input type="text" name="opt3" id="editO3" required></div>
+        <div class="f-field">
+          <label>Category</label>
+          <select name="category" id="editCat">
+            {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button type="submit" class="add-btn" style="flex:1">Save Changes ✅</button>
+        <button type="button" onclick="closeEdit()" style="padding:12px 20px;border:1px solid rgba(255,255,255,.2);border-radius:30px;background:none;color:#fff;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function openEdit(id, q, o0, o1, o2, o3, cat){
+  document.getElementById('editQ').value  = q;
+  document.getElementById('editO0').value = o0;
+  document.getElementById('editO1').value = o1;
+  document.getElementById('editO2').value = o2;
+  document.getElementById('editO3').value = o3;
+  document.getElementById('editCat').value = cat;
+  document.getElementById('editForm').action = '/admin/edit_question/' + id;
+  const modal = document.getElementById('editModal');
+  modal.style.display = 'flex';
+}
+function closeEdit(){
+  document.getElementById('editModal').style.display = 'none';
+}
+document.getElementById('editModal').addEventListener('click', function(e){
+  if(e.target === this) closeEdit();
+});
+</script>
+
+{% endblock %}
+{% block content %}
+<div class="admin-wrap">
+  <div class="admin-header">
+    <h2>🎓 Admin Panel</h2>
+    <p>Manage students, questions, and view analytics</p>
+  </div>
+
+  <div class="a-tabs">
+    <button class="a-tab active" onclick="switchAdmin('overview')">📊 Overview</button>
+    <button class="a-tab" onclick="switchAdmin('students')">👥 Students</button>
+    <button class="a-tab" onclick="switchAdmin('questions')">❓ Questions</button>
+    <button class="a-tab" onclick="switchAdmin('hardest')">🔥 Hardest Questions</button>
+    <button class="a-tab" onclick="switchAdmin('flagged')">⚠️ Anti-Cheat</button>
+    <button class="a-tab" onclick="switchAdmin('exams')">🎓 Exams</button>
+    <button class="a-tab" onclick="switchAdmin('classes')">🏫 Classes</button>
+    <button class="a-tab" onclick="switchAdmin('rooms')">🎮 Quiz Rooms</button>
+    <button class="a-tab" onclick="switchAdmin('promote')">👩‍🏫 Promote Users</button>
+    <button class="a-tab" onclick="switchAdmin('beexam')">🎓 BeeXam</button>
+    <button class="a-tab" onclick="switchAdmin('ai')">🤖 AI Generator</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="a-panel active" id="panel-overview">
+    <div class="ov-row">
+      <div class="ov-card"><div class="v">{{ total_users }}</div><div class="l">Students</div></div>
+      <div class="ov-card"><div class="v">{{ total_games }}</div><div class="l">Games Played</div></div>
+      <div class="ov-card"><div class="v">{{ db_questions|length }}</div><div class="l">Custom Questions</div></div>
+      <div class="ov-card"><div class="v">{{ cat_performance|length }}</div><div class="l">Categories</div></div>
+    </div>
+
+    <div class="section-label">Category Performance (all students)</div>
+    {% if cat_performance %}
+      {% for c in cat_performance %}
+      <div class="cat-row">
+        <div class="cat-lbl">{{ c.category }}<span>{{ c.pct or 0 }}% correct · {{ c.total }} attempts</span></div>
+        <div class="bar-bg"><div class="bar-fill {% if (c.pct or 0)<50 %}low{% elif (c.pct or 0)<75 %}mid{% endif %}" style="width:{{ c.pct or 0 }}%"></div></div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color:rgba(255,255,255,.3);font-size:14px">No game data yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- STUDENTS -->
+  <div class="a-panel" id="panel-students">
+    <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
+      <span>All Students ({{ students|length }})</span>
+      <a href="/admin/export_csv" style="background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3);padding:7px 16px;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;transition:.2s">⬇️ Export CSV</a>
+    </div>
+    {% if students %}
+    <table class="a-table">
+      <thead><tr><th>Username</th><th>Joined</th><th>Games</th><th>Avg %</th><th>Best %</th><th>⚠️ Tab Switches</th><th></th></tr></thead>
+      <tbody>
+      {% for s in students %}
+      <tr>
+        <td><a href="/admin/student/{{ s.id }}" style="color:var(--honey);font-weight:700;text-decoration:none">{{ s.username }}</a></td>
+        <td style="color:rgba(255,255,255,.4)">{{ s.created[:10] }}</td>
+        <td>{{ s.games or 0 }}</td>
+        <td>{{ s.avg_pct or '—' }}{% if s.avg_pct %}%{% endif %}</td>
+        <td>
+          {% if s.best_pct %}
+            <span class="badge-grade bg-{% if s.best_pct>=80 %}A{% elif s.best_pct>=60 %}B{% elif s.best_pct>=40 %}C{% else %}D{% endif %}">{{ s.best_pct }}%</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if s.max_tabs and s.max_tabs > 0 %}
+            <span style="color:#f59e0b;font-weight:700">⚠️ {{ s.max_tabs }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/admin/delete_student/{{ s.id }}" style="display:inline" onsubmit="return confirm('Remove {{ s.username }} and all their data?')">
+            <button class="del-btn">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p style="color:rgba(255,255,255,.3);font-size:14px;padding:20px 0">No students registered yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- QUESTIONS -->
+  <div class="a-panel" id="panel-questions">
+    <div class="add-form" style="margin-bottom:28px">
+      <h3>➕ Add New Question</h3>
+      <form method="post" action="/admin/add_question">
+        <div class="form-grid">
+          <div class="f-field full"><label>Question</label><input type="text" name="question" placeholder="Type the question here..." required></div>
+          <div class="f-field"><label>Option A (Correct Answer)</label><input type="text" name="opt0" placeholder="Correct answer" required></div>
+          <div class="f-field"><label>Option B</label><input type="text" name="opt1" placeholder="Wrong option" required></div>
+          <div class="f-field"><label>Option C</label><input type="text" name="opt2" placeholder="Wrong option" required></div>
+          <div class="f-field"><label>Option D</label><input type="text" name="opt3" placeholder="Wrong option" required></div>
+          <div class="f-field">
+            <label>Category</label>
+            <select name="category">
+              {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+            </select>
+          </div>
+          <input type="hidden" name="answer" value="0">
+        </div>
+        <button type="submit" class="add-btn">Add Question 🐝</button>
+      </form>
+      <p style="font-size:12px;color:rgba(255,255,255,.3);margin-top:12px">💡 Option A is always the correct answer — options are shuffled automatically during the quiz.</p>
+    </div>
+
+    <!-- CSV Import -->
+    <div class="add-form" style="margin-bottom:28px;border-color:rgba(255,183,3,.1)">
+      <h3>📂 Bulk Import via CSV</h3>
+      <form method="post" action="/admin/import_csv" enctype="multipart/form-data">
+        <div class="form-grid">
+          <div class="f-field full">
+            <label>CSV File</label>
+            <input type="file" name="csv_file" accept=".csv" required style="padding:8px 14px;cursor:pointer">
+          </div>
+        </div>
+        <button type="submit" class="add-btn" style="background:rgba(255,255,255,.1);color:#fff;box-shadow:none">Import CSV 📂</button>
+      </form>
+      <p style="font-size:12px;color:rgba(255,255,255,.25);margin-top:10px">
+        CSV format: <code style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px">question,opt0,opt1,opt2,opt3,category</code><br>
+        opt0 = correct answer. First row must be the header row.
+      </p>
+    </div>
+
+    <div class="section-label">Custom Questions Added ({{ db_questions|length }})</div>
+    {% if db_questions %}
+    <table class="a-table">
+      <thead><tr><th>Question</th><th>Category</th><th>Correct Answer</th><th>Added</th><th></th></tr></thead>
+      <tbody>
+      {% for q in db_questions %}
+      <tr>
+        <td class="q-preview" title="{{ q.question }}">{{ q.question }}</td>
+        <td><span class="cat-pill">{{ q.category }}</span></td>
+        <td style="color:rgba(255,255,255,.6)">{{ q.opt0 }}</td>
+        <td style="color:rgba(255,255,255,.35)">{{ q.created[:10] }}</td>
+        <td>
+          <button class="del-btn" style="background:rgba(59,130,246,.15);color:#3b82f6;margin-bottom:4px" onclick="openEdit({{ q.id }}, '{{ q.question|replace("'","\'") }}', '{{ q.opt0|replace("'","\'") }}', '{{ q.opt1|replace("'","\'") }}', '{{ q.opt2|replace("'","\'") }}', '{{ q.opt3|replace("'","\'") }}', '{{ q.category }}')">Edit</button><br>
+          <form method="post" action="/admin/delete_question/{{ q.id }}" style="display:inline" onsubmit="return confirm('Delete this question?')">
+            <button class="del-btn">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p style="color:rgba(255,255,255,.3);font-size:14px;padding:20px 0">No custom questions added yet. Use the form above!</p>
+    {% endif %}
+  </div>
+
+  <!-- HARDEST QUESTIONS -->
+  <div class="a-panel" id="panel-hardest">
+    <div class="section-label">🔥 Questions Students Fail the Most</div>
+    {% if hardest %}
+    <table class="a-table">
+      <thead><tr><th>Question</th><th>Category</th><th>Attempts</th><th>Fail Rate</th></tr></thead>
+      <tbody>
+      {% for h in hardest %}
+      <tr>
+        <td class="q-preview" title="{{ h.question }}">{{ h.question }}</td>
+        <td><span class="cat-pill">{{ h.category }}</span></td>
+        <td>{{ h.attempts }}</td>
+        <td class="{% if h.fail_pct>=70 %}fail-high{% elif h.fail_pct>=50 %}fail-mid{% endif %}">{{ h.fail_pct }}%</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p style="color:rgba(255,255,255,.3);font-size:14px;padding:20px 0">Not enough data yet. Students need to play more games! 🐝</p>
+    {% endif %}
+  </div>
+</div>
+  <!-- FLAGGED / ANTI-CHEAT -->
+  <div class="a-panel" id="panel-flagged">
+
+    <!-- How anti-cheat works -->
+    <div style="background:rgba(251,133,0,.06);border:1px solid rgba(251,133,0,.2);
+                border-radius:16px;padding:18px 20px;margin-bottom:24px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;color:#FFB703;
+                  font-size:14px;margin-bottom:8px">🛡️ How the Anti-Cheat System Works</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.7">
+        <strong style="color:rgba(255,255,255,.7)">1. Tab Switch Detection</strong> — 
+        The browser detects every time a student switches to another tab or app during a quiz.
+        Each switch is counted and saved with the result.<br>
+        <strong style="color:rgba(255,255,255,.7)">2. Question Shuffling</strong> — 
+        Every student gets a different random order of questions AND shuffled answer options,
+        making copy-pasting useless.<br>
+        <strong style="color:rgba(255,255,255,.7)">3. Data shown below</strong> — 
+        Only students with 1+ tab switches appear here. Zero means no switching detected.
+      </div>
+    </div>
+
+    <div class="section-label">⚠️ Flagged: Tab Switches During Quiz ({{ flagged|length }} records)</div>
+    {% if flagged %}
+    <table class="a-table" style="margin-bottom:28px">
+      <thead>
+        <tr>
+          <th>Student</th><th>Mode</th>
+          <th>Tab Switches</th><th>Score</th><th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for f in flagged %}
+      <tr>
+        <td><strong>{{ f.username }}</strong></td>
+        <td><span class="cat-pill">{{ f.mode }}</span></td>
+        <td>
+          <span class="{{ 'fail-high' if f.tab_switches >= 3 else 'fail-mid' }}"
+                style="font-size:15px">
+            ⚠️ {{ f.tab_switches }} switch{{ 'es' if f.tab_switches != 1 else '' }}
+          </span>
+        </td>
+        <td>
+          <span style="color:{{ '#10b981' if f.pct >= 80 else '#f59e0b' if f.pct >= 60 else '#ef4444' }};font-weight:700">
+            {{ f.pct }}%
+          </span>
+        </td>
+        <td style="color:rgba(255,255,255,.35);font-size:12px">{{ f.played_at[:16].replace('T',' ') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);
+                border-radius:14px;padding:20px;text-align:center;margin-bottom:28px">
+      <div style="font-size:28px;margin-bottom:8px">&#127881;</div>
+      <div style="color:#10b981;font-weight:700;font-size:15px">No tab switches detected yet!</div>
+      <div style="color:rgba(255,255,255,.35);font-size:13px;margin-top:4px">
+        This section fills up when students switch tabs during a quiz. Keep an eye on it during exams.
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent all quizzes -->
+    <div class="section-label">📋 All Recent Quiz Attempts (last 25)</div>
+    {% if recent_results %}
+    <table class="a-table">
+      <thead>
+        <tr><th>Student</th><th>Mode</th><th>Score</th><th>Tab Switches</th><th>Date</th></tr>
+      </thead>
+      <tbody>
+      {% for r in recent_results %}
+      <tr style="{{ 'background:rgba(239,68,68,.05)' if r.tab_switches > 0 else '' }}">
+        <td><strong>{{ r.username }}</strong></td>
+        <td><span class="cat-pill">{{ r.mode }}</span></td>
+        <td><span style="font-weight:700;color:{{ '#10b981' if r.pct >= 80 else '#f59e0b' if r.pct >= 60 else '#ef4444' }}">{{ r.pct }}%</span></td>
+        <td>
+          {% if r.tab_switches > 0 %}
+            <span class="{{ 'fail-high' if r.tab_switches >= 3 else 'fail-mid' }}">⚠️ {{ r.tab_switches }}</span>
+          {% else %}
+            <span style="color:rgba(255,255,255,.25)">✓ Clean</span>
+          {% endif %}
+        </td>
+        <td style="color:rgba(255,255,255,.35);font-size:12px">{{ r.played_at[:10] }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:rgba(255,255,255,.3);font-size:14px;padding:20px 0">No quiz attempts recorded yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- EXAM SCHEDULER -->
+  <div class="a-panel" id="panel-exams">
+    <div class="add-form" style="margin-bottom:28px">
+      <h3>📅 Schedule a New Exam</h3>
+      <form method="post" action="/admin/create_exam">
+        <div class="form-grid">
+          <div class="f-field full"><label>Exam Title</label><input type="text" name="title" placeholder="e.g. Unit Test 1 — Python Basics" required></div>
+          <div class="f-field"><label>Start Date & Time</label><input type="datetime-local" name="start_time" required></div>
+          <div class="f-field"><label>End Date & Time</label><input type="datetime-local" name="end_time" required></div>
+        </div>
+        <button type="submit" class="add-btn">Schedule Exam 🎓</button>
+      </form>
+      <p style="font-size:12px;color:rgba(255,255,255,.3);margin-top:10px">💡 Students will see active exams on their mode selection page during the exam window.</p>
+    </div>
+
+    <div class="section-label">All Scheduled Exams ({{ exams|length }})</div>
+    {% if exams %}
+    <table class="a-table">
+      <thead><tr><th>Title</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for e in exams %}
+      <tr>
+        <td><strong>{{ e.title }}</strong></td>
+        <td style="color:rgba(255,255,255,.5)">{{ e.start_time[:16].replace('T',' ') }}</td>
+        <td style="color:rgba(255,255,255,.5)">{{ e.end_time[:16].replace('T',' ') }}</td>
+        <td>
+          {% if e.active %}<span style="color:#10b981;font-weight:700;font-size:12px">● Active</span>
+          {% else %}<span style="color:rgba(255,255,255,.3);font-size:12px">Inactive</span>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/admin/delete_exam/{{ e.id }}" onsubmit="return confirm('Delete this exam?')">
+            <button class="del-btn">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p style="color:rgba(255,255,255,.3);font-size:14px;padding:20px 0">No exams scheduled yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- CLASSES PANEL -->
+  <div class="a-panel" id="panel-classes">
+
+    <!-- Create class form -->
+    <div class="add-form" style="margin-bottom:28px">
+      <h3>🏫 Create a New Class</h3>
+      <form method="post" action="/admin/create_class">
+        <div class="form-grid">
+          <div class="f-field full">
+            <label>Class Name</label>
+            <input type="text" name="class_name" placeholder="e.g. BCA Section A — 2026" required>
+          </div>
+        </div>
+        <button type="submit" class="add-btn">Create Class 🏫</button>
+      </form>
+      <p style="font-size:12px;color:rgba(255,255,255,.3);margin-top:10px">
+        A random 6-character code is generated. Share it with students — they join from their Profile page.
+      </p>
+    </div>
+
+    <!-- Class roster cards -->
+    <div class="section-label">All Classes ({{ classes|length }})</div>
+    {% if classes %}
+    {% for cl in classes %}
+    <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,183,3,.18);
+                border-radius:18px;padding:20px 24px;margin-bottom:20px">
+
+      <!-- Class header row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="font-size:28px">🏫</div>
+          <div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;color:#fff">
+              {{ cl.name }}
+            </div>
+            <div style="font-size:12px;color:rgba(255,255,255,.35);margin-top:2px">
+              Created {{ cl.created[:10] }} &middot;
+              {{ cl.member_count or 0 }} student{{ 's' if cl.member_count!=1 else '' }}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:rgba(255,183,3,.15);border:1px solid rgba(255,183,3,.3);
+                      padding:8px 18px;border-radius:12px;text-align:center">
+            <div style="font-family:monospace;font-size:20px;font-weight:800;
+                        color:#FFD84D;letter-spacing:4px">{{ cl.code }}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:2px;font-weight:700">JOIN CODE</div>
+          </div>
+          <form method="post" action="/admin/delete_class/{{ cl.id }}"
+                onsubmit="return confirm('Delete class {{ cl.name }} and remove all members?')">
+            <button class="del-btn" style="padding:8px 16px">Delete</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Member roster -->
+      {% set members = class_members_detail.get(cl.id, []) %}
+      {% if members %}
+      <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:14px">
+        <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.35);
+                    text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">
+          Student Roster
+        </div>
+        <table class="a-table" style="margin:0">
+          <thead>
+            <tr><th>#</th><th>Student</th><th>Games</th><th>Avg Score</th><th>Best Score</th></tr>
+          </thead>
+          <tbody>
+          {% for m in members %}
+          <tr>
+            <td style="color:rgba(255,255,255,.3);font-size:12px">{{ loop.index }}</td>
+            <td>
+              <a href="/admin/student/{{ m.id }}" class="student-link"
+                 style="display:flex;align-items:center;gap:8px;text-decoration:none">
+                <span style="font-size:20px">{{ m.avatar or '🐝' }}</span>
+                <span style="font-weight:700;color:#fff">{{ m.username }}</span>
+              </a>
+            </td>
+            <td>{{ m.games or 0 }}</td>
+            <td>
+              {% if m.avg_pct %}
+                <span style="color:{% if m.avg_pct >= 80 %}#10b981{% elif m.avg_pct >= 60 %}#FFB703{% else %}#ef4444{% endif %};font-weight:700">
+                  {{ m.avg_pct }}%
+                </span>
+              {% else %}
+                <span style="color:rgba(255,255,255,.3)">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if m.best_pct %}
+                <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;color:#FFD84D">
+                  {{ m.best_pct }}%
+                </span>
+              {% else %}
+                <span style="color:rgba(255,255,255,.3)">No games</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:14px;
+                  text-align:center;color:rgba(255,255,255,.25);font-size:13px;padding-bottom:4px">
+        No students have joined yet. Share the code above!
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:32px;color:rgba(255,255,255,.25)">
+      <div style="font-size:40px;margin-bottom:12px">🏫</div>
+      <div style="font-size:14px">No classes yet. Create one above and share the code with your students!</div>
+    </div>
+    {% endif %}
+  </div>
+
+
+  <!-- QUIZ ROOMS PANEL -->
+  <div class="a-panel" id="panel-rooms">
+
+    <!-- Create room form -->
+    <div class="add-form" style="margin-bottom:28px;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.04)">
+      <h3 style="color:#34d399">🎮 Create a Quiz Room</h3>
+      <p style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:18px">
+        Upload a CSV of questions. Each student gets a <strong style="color:#34d399">uniquely shuffled version</strong>
+        — different question order AND different option order — so copying is impossible.
+      </p>
+      <form method="post" action="/admin/create_room" enctype="multipart/form-data">
+        <input type="hidden" name="source" value="csv">
+        <div class="form-grid">
+          <div class="f-field full">
+            <label>Room Title</label>
+            <input type="text" name="room_title" placeholder="e.g. Unit Test 1 — Python Basics" required>
+          </div>
+          <div class="f-field full">
+            <label>Upload Questions CSV</label>
+            <input type="file" name="room_csv" accept=".csv" required
+                   style="padding:9px 14px;cursor:pointer">
+            <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:5px">
+              Format: question, opt0 (correct), opt1, opt2, opt3 — same as CustomizeBee CSV
+            </div>
+          </div>
+          <div class="f-field">
+            <label>Seconds per Question</label>
+            <select name="time_limit">
+              <option value="15">15 seconds</option>
+              <option value="30" selected>30 seconds</option>
+              <option value="45">45 seconds</option>
+              <option value="60">60 seconds</option>
+              <option value="90">90 seconds</option>
+              <option value="120">2 minutes</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="add-btn" style="background:linear-gradient(135deg,#34d399,#059669)">
+          Create Room 🎮
+        </button>
+      </form>
+    </div>
+
+    <!-- Active rooms list -->
+    <div class="section-label">Active Rooms ({{ quiz_rooms|length }})</div>
+    {% if quiz_rooms %}
+    {% for room in quiz_rooms %}
+    <div style="background:rgba(255,255,255,.05);border:1px solid rgba(52,211,153,.2);
+                border-radius:18px;padding:20px 24px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="font-size:28px">🎮</div>
+          <div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;color:#fff">
+              {{ room.title }}
+            </div>
+            <div style="font-size:12px;color:rgba(255,255,255,.35);margin-top:2px">
+              {{ room.q_count }} questions &middot; {{ room.time_limit }}s per question &middot;
+              {{ room.submission_count }} submission{{ 's' if room.submission_count != 1 else '' }}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);
+                      padding:8px 18px;border-radius:12px;text-align:center">
+            <div style="font-family:monospace;font-size:20px;font-weight:800;
+                        color:#34d399;letter-spacing:4px">{{ room.code }}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:2px;font-weight:700">ROOM CODE</div>
+          </div>
+          <a href="/admin/room_results/{{ room.id }}"
+             style="padding:8px 16px;background:rgba(255,183,3,.15);color:#FFB703;border:1px solid rgba(255,183,3,.3);
+                    border-radius:10px;font-size:13px;font-weight:700;text-decoration:none">
+            View Results
+          </a>
+          <form method="post" action="/admin/delete_room/{{ room.id }}"
+                onsubmit="return confirm('Delete this room and all results?')">
+            <button class="del-btn">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:32px;color:rgba(255,255,255,.25)">
+      <div style="font-size:40px;margin-bottom:12px">🎮</div>
+      <div style="font-size:14px">No rooms yet. Create one above and share the code with your students!</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- AI QUESTION GENERATOR PANEL -->
+  <!-- ── PROMOTE USERS PANEL ── -->
+  <div class="a-panel" id="panel-promote">
+
+    <div style="background:rgba(255,183,3,.07);border:1.5px solid rgba(255,183,3,.25);border-radius:18px;padding:22px;margin-bottom:24px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">👩‍🏫 Promote a User</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Search a student by username and promote them to Teacher or demote back to Student.</div>
+
+      <!-- Live search -->
+      <div style="position:relative;margin-bottom:14px">
+        <input type="text" id="promoteSearch" placeholder="Search username..." oninput="searchUsers(this.value)"
+          style="width:100%;padding:11px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none;box-sizing:border-box">
+        <div id="searchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1.5px solid var(--stat-border);border-radius:10px;margin-top:4px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.2)"></div>
+      </div>
+
+      <!-- Promote form -->
+      <form method="post" action="/admin/promote" id="promoteForm" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="text" name="username" id="promoteUsername" placeholder="Username" required
+          style="flex:1;min-width:160px;padding:10px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none">
+        <select name="role" style="padding:10px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none">
+          <option value="teacher">👩‍🏫 Teacher</option>
+          <option value="student">🎓 Student</option>
+          <option value="admin">⚙️ Admin</option>
+        </select>
+        <button type="submit" class="add-btn" style="background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e">Promote →</button>
+      </form>
+    </div>
+
+    <!-- Current Teachers list -->
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">Current Teachers</div>
+    {% set teachers = students|selectattr("role","equalto","teacher")|list if students else [] %}
+    {% if teachers %}
+    <table class="a-table">
+      <tr><th>Username</th><th>Role</th><th>Action</th></tr>
+      {% for t in teachers %}
+      <tr>
+        <td><strong>{{ t.username }}</strong></td>
+        <td><span style="background:rgba(168,85,247,.15);color:#c084fc;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:700">👩‍🏫 Teacher</span></td>
+        <td>
+          <form method="post" action="/admin/promote" style="display:inline">
+            <input type="hidden" name="username" value="{{ t.username }}">
+            <input type="hidden" name="role" value="student">
+            <button type="submit" class="del-btn" onclick="return confirm('Demote {{ t.username }} to student?')">Demote to Student</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div style="text-align:center;padding:30px;color:var(--text-muted)">
+      <div style="font-size:36px;margin-bottom:10px">👩‍🏫</div>
+      <div>No teachers yet. Promote a student above!</div>
+    </div>
+    {% endif %}
+
+    <!-- Contact memo for teachers wanting access -->
+    <div style="margin-top:20px;padding:16px;background:rgba(255,183,3,.06);border:1px solid rgba(255,183,3,.15);border-radius:14px;font-size:13px;color:var(--text-muted)">
+      <div style="font-weight:700;color:var(--text-primary);margin-bottom:6px">📬 Your Contact Info (shown to users on register page)</div>
+      <div>Students who want teacher access see: <strong style="color:var(--honey)">beewise.quiz2026@gmail.com</strong> and <strong style="color:var(--honey)">+91 98765 43210</strong></div>
+      <div style="margin-top:6px;font-size:12px">To update this, edit the contact details in <code>templates/login.html</code></div>
+    </div>
+
+    <script>
+    async function searchUsers(q){
+      const results = document.getElementById('searchResults');
+      if(q.length < 2){ results.style.display='none'; return; }
+      try{
+        const r = await fetch('/admin/users?q='+encodeURIComponent(q));
+        const d = await r.json();
+        if(!d.users||!d.users.length){ results.style.display='none'; return; }
+        results.innerHTML = d.users.map(u=>
+          `<div onclick="selectUser('${u.username}')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--item-border);display:flex;align-items:center;justify-content:space-between"
+               onmouseover="this.style.background='var(--item-bg)'" onmouseout="this.style.background=''">
+            <span style="font-weight:700;color:var(--text-primary)">${u.username}</span>
+            <span style="font-size:11px;color:var(--text-muted);background:rgba(255,255,255,.08);padding:2px 8px;border-radius:20px">${u.role||'student'}</span>
+          </div>`
+        ).join('');
+        results.style.display='block';
+      }catch(e){}
+    }
+    function selectUser(username){
+      document.getElementById('promoteUsername').value = username;
+      document.getElementById('promoteSearch').value = username;
+      document.getElementById('searchResults').style.display='none';
+    }
+    document.addEventListener('click', e=>{
+      if(!e.target.closest('#panel-promote')) document.getElementById('searchResults').style.display='none';
+    });
+    </script>
+  </div>
+
+  <!-- ── BEEXAM PANEL ── -->
+  <div class="a-panel" id="panel-beexam">
+
+    <!-- Step 1: Create a new exam type OR upload paper to existing -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px">
+
+      <!-- Create new exam panel -->
+      <div style="background:rgba(168,85,247,.07);border:1.5px solid rgba(168,85,247,.25);border-radius:18px;padding:20px">
+        <div style="font-size:13px;font-weight:800;color:#c084fc;margin-bottom:14px;text-transform:uppercase;letter-spacing:.6px">➕ New Exam Type</div>
+        <form method="post" action="/admin/beexam/create_exam_type">
+          <div class="f-field" style="margin-bottom:10px">
+            <label>Exam Name</label>
+            <input type="text" name="exam_name" placeholder="e.g. NEET, JEE Main, SAT" required>
+          </div>
+          <div class="f-field" style="margin-bottom:10px">
+            <label>Group / Category</label>
+            <select name="exam_group">
+              <option value="Medical">Medical</option>
+              <option value="Engineering">Engineering</option>
+              <option value="Civil Services">Civil Services</option>
+              <option value="Banking">Banking</option>
+              <option value="International">International</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <button type="submit" class="add-btn" style="background:linear-gradient(135deg,#a855f7,#7c3aed);width:100%">Create Exam Panel</button>
+        </form>
+      </div>
+
+      <!-- Upload paper to existing exam -->
+      <div style="background:rgba(168,85,247,.07);border:1.5px solid rgba(168,85,247,.25);border-radius:18px;padding:20px">
+        <div style="font-size:13px;font-weight:800;color:#c084fc;margin-bottom:14px;text-transform:uppercase;letter-spacing:.6px">📤 Upload Paper (CSV)</div>
+        <form method="post" action="/admin/beexam/upload" enctype="multipart/form-data">
+          <div class="f-field" style="margin-bottom:10px">
+            <label>Exam</label>
+            <select name="exam_name" required>
+              {% if beexam_exam_types %}
+                {% for et in beexam_exam_types %}<option value="{{ et.name }}">{{ et.name }}</option>{% endfor %}
+              {% else %}
+                <option disabled>— Create an exam type first —</option>
+              {% endif %}
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div class="f-field"><label>Subject</label><input type="text" name="subject" placeholder="e.g. Physics"></div>
+            <div class="f-field"><label>Year</label><input type="number" name="year" value="2024" min="2000" max="2099" required></div>
+            <div class="f-field"><label>Time (mins)</label><input type="number" name="time_limit" value="180" min="10" max="360" required></div>
+            <div class="f-field"><label>Cutoff</label><input type="number" name="cutoff" placeholder="optional"></div>
+          </div>
+          <div class="f-field" style="margin-bottom:10px">
+            <input type="file" name="csv_file" accept=".csv" required style="padding:8px;background:rgba(255,255,255,.05);border:1.5px dashed rgba(168,85,247,.3);border-radius:10px;color:rgba(255,255,255,.7);width:100%;box-sizing:border-box;font-size:12px">
+            <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:4px">question, opt0 (correct), opt1, opt2, opt3, category</div>
+          </div>
+          <button type="submit" class="add-btn" style="background:linear-gradient(135deg,#a855f7,#7c3aed);width:100%">📤 Upload</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Per-exam panels -->
+    {% if beexam_exam_types %}
+      {% set exam_icons_a = {'NEET':'🩺','JEE Main':'⚗️','JEE Advanced':'🔬','SAT':'📐','ACT':'📏','GRE':'🎓','GMAT':'💼','UPSC':'🏛️','SSC':'📋','Bank PO':'🏦','GATE':'💻','USMLE':'🏥','A-Levels':'📚'} %}
+      {% for et in beexam_exam_types %}
+      <div style="background:rgba(255,255,255,.03);border:1.5px solid rgba(168,85,247,.15);border-radius:18px;margin-bottom:14px;overflow:hidden">
+
+        <!-- Exam header — click to expand -->
+        <div onclick="toggleBxPanel({{ loop.index }})" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;cursor:pointer;transition:.2s" onmouseover="this.style.background='rgba(168,85,247,.08)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:24px">{{ exam_icons_a.get(et.name,'📝') }}</span>
+            <div>
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;color:#fff">{{ et.name }}</div>
+              <div style="font-size:11px;color:rgba(168,85,247,.7);font-weight:700">{{ et.paper_count }} paper{{ 's' if et.paper_count != 1 }} · {{ et.group }}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <form method="post" action="/admin/beexam/delete_exam_type/{{ et.name|urlencode }}" onsubmit="return confirm('Delete {{ et.name }} and ALL its papers?')" style="display:inline">
+              <button type="submit" class="del-btn" onclick="event.stopPropagation()">🗑</button>
+            </form>
+            <span id="bx-arrow-{{ loop.index }}" style="color:rgba(168,85,247,.6);font-size:18px;transition:.3s">▼</span>
+          </div>
+        </div>
+
+        <!-- Expandable content -->
+        <div id="bx-panel-{{ loop.index }}" style="display:none;border-top:1px solid rgba(168,85,247,.1);padding:18px 20px">
+
+          <!-- Add question manually -->
+          <div style="background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.2);border-radius:14px;padding:16px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:800;color:#c084fc;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">✏️ Add Question Manually</div>
+            <form method="post" action="/admin/beexam/add_question">
+              <input type="hidden" name="exam_name" value="{{ et.name }}">
+              <div class="form-grid">
+                <div class="f-field full"><label>Question</label><input type="text" name="question" required></div>
+                <div class="f-field"><label>✅ Correct Answer</label><input type="text" name="opt0" required></div>
+                <div class="f-field"><label>Option B</label><input type="text" name="opt1" required></div>
+                <div class="f-field"><label>Option C</label><input type="text" name="opt2" required></div>
+                <div class="f-field"><label>Option D</label><input type="text" name="opt3" required></div>
+                <div class="f-field">
+                  <label>Subject / Category</label>
+                  <input type="text" name="category" placeholder="e.g. Physics, Biology">
+                </div>
+                <div class="f-field">
+                  <label>Add to Paper (Year)</label>
+                  <select name="paper_id">
+                    {% for p in beexam_papers %}{% if p.exam_name == et.name %}
+                    <option value="{{ p.id }}">{{ p.year }}{% if p.subject %} – {{ p.subject }}{% endif %}</option>
+                    {% endif %}{% endfor %}
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="add-btn" style="background:linear-gradient(135deg,#a855f7,#7c3aed);margin-top:8px">Add Question</button>
+            </form>
+          </div>
+
+          <!-- Papers list for this exam -->
+          {% set ns = namespace(found=false) %}
+          {% for p in beexam_papers %}{% if p.exam_name == et.name %}{% set ns.found = true %}
+          <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div>
+              <div style="font-size:14px;font-weight:800;color:#fff">{{ p.year }}{% if p.subject %} — {{ p.subject }}{% endif %}</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:3px">
+                ❓ {{ p.question_count }} questions &nbsp;·&nbsp;
+                ⏱ {{ (p.time_limit//60) }}h{% if p.time_limit%60 %} {{ p.time_limit%60 }}m{% endif %}
+                {% if p.cutoff %} &nbsp;·&nbsp; 🎯 Cutoff: {{ p.cutoff }}{% endif %}
+              </div>
+            </div>
+            <form method="post" action="/admin/beexam/delete/{{ p.id }}" onsubmit="return confirm('Delete this paper and all its questions?')">
+              <button type="submit" class="del-btn">🗑 Delete Paper</button>
+            </form>
+          </div>
+          {% endif %}{% endfor %}
+          {% if not ns.found %}
+          <div style="text-align:center;padding:16px;color:rgba(255,255,255,.25);font-size:13px">No papers yet — upload a CSV above!</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:30px;color:rgba(255,255,255,.3)">
+      <div style="font-size:36px;margin-bottom:10px">🎓</div>
+      <div>No exam types yet. Create your first one above!</div>
+    </div>
+    {% endif %}
+
+    <script>
+    function toggleBxPanel(i) {
+      const panel = document.getElementById('bx-panel-'+i);
+      const arrow = document.getElementById('bx-arrow-'+i);
+      const open  = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : 'block';
+      arrow.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+    }
+    </script>
+  </div>
+
+  <div class="a-panel" id="panel-ai">
+    <div class="add-form" style="border-color:rgba(139,92,246,.3);background:rgba(139,92,246,.06)">
+      <h3 style="color:#a78bfa">🤖 AI Question Generator</h3>
+      <p style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:18px">
+        Describe any topic and Claude AI will generate ready-to-use quiz questions and add them to your question bank automatically.
+      </p>
+      <div class="form-grid">
+        <div class="f-field full">
+          <label>Describe the topic</label>
+          <input type="text" id="aiTopic" placeholder="e.g. Python list methods, SQL JOIN types, CSS flexbox properties..." style="border-color:rgba(139,92,246,.4)">
+        </div>
+        <div class="f-field">
+          <label>Category</label>
+          <select id="aiCategory">
+            {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="f-field">
+          <label>Number of questions</label>
+          <select id="aiCount">
+            <option value="3">3 questions</option>
+            <option value="5" selected>5 questions</option>
+            <option value="8">8 questions</option>
+            <option value="10">10 questions</option>
+          </select>
+        </div>
+      </div>
+      <button class="add-btn" onclick="generateQuestions()" id="aiGenBtn"
+        style="background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;box-shadow:0 6px 20px rgba(124,58,237,.4)">
+        ✨ Generate with AI
+      </button>
+      <div id="aiStatus" style="margin-top:16px;font-size:14px;display:none"></div>
+    </div>
+
+    <!-- Preview of generated questions -->
+    <div id="aiPreview" style="display:none">
+      <div class="section-label" style="margin-top:8px">✅ Generated Questions Preview</div>
+      <div id="aiQList" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+  </div>
+
+<script>
+async function generateQuestions(){
+  const topic = document.getElementById('aiTopic').value.trim();
+  const cat   = document.getElementById('aiCategory').value;
+  const count = document.getElementById('aiCount').value;
+  const btn   = document.getElementById('aiGenBtn');
+  const status= document.getElementById('aiStatus');
+  const preview=document.getElementById('aiPreview');
+
+  if(!topic){ alert('Please describe a topic first!'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating...';
+  status.style.display = 'block';
+  status.style.color = 'rgba(255,255,255,.6)';
+  status.textContent = '🤖 Claude is writing your questions... (this takes ~10 seconds)';
+  preview.style.display = 'none';
+
+  try {
+    const fd = new FormData();
+    fd.append('topic', topic);
+    fd.append('ai_category', cat);
+    fd.append('count', count);
+
+    const res = await fetch('/admin/ai_generate', { method:'POST', body: fd });
+    const data = await res.json();
+
+    if(data.error){
+      status.style.color = '#f87171';
+      status.textContent = '❌ ' + data.error;
+    } else {
+      status.style.color = '#4ade80';
+      status.textContent = `✅ ${data.saved} questions added to the ${cat} category!`;
+
+      // Show preview
+      const list = document.getElementById('aiQList');
+      list.innerHTML = '';
+      data.questions.forEach((q,i) => {
+        list.innerHTML += `
+          <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:14px;padding:16px">
+            <div style="font-size:13px;font-weight:700;color:#a78bfa;margin-bottom:6px">Q${i+1} — ${cat}</div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:10px">${q.question}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div style="padding:6px 10px;border-radius:8px;background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.3);font-size:12px;color:#4ade80">✅ ${q.opt0}</div>
+              <div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.05);font-size:12px;color:rgba(255,255,255,.6)">○ ${q.opt1}</div>
+              <div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.05);font-size:12px;color:rgba(255,255,255,.6)">○ ${q.opt2}</div>
+              <div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.05);font-size:12px;color:rgba(255,255,255,.6)">○ ${q.opt3}</div>
+            </div>
+          </div>`;
+      });
+      preview.style.display = 'block';
+    }
+  } catch(e) {
+    status.style.color = '#f87171';
+    status.textContent = '❌ Network error. Check your connection and API key.';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '✨ Generate with AI';
+}
+</script>
+
+<script>
+function switchAdmin(t){
+  document.querySelectorAll('.a-tab').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.a-panel').forEach(e=>e.classList.remove('active'));
+  document.querySelector('[onclick="switchAdmin(\''+t+'\')"]').classList.add('active');
+  document.getElementById('panel-'+t).classList.add('active');
+}
+// Auto-open tab from URL param e.g. /admin?tab=classes
+(function(){
+  var tab = new URLSearchParams(window.location.search).get('tab');
+  if(tab && document.getElementById('panel-'+tab)) switchAdmin(tab);
+})();
+</script>
+
+<!-- Edit Question Modal -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#1a1a2e;border:1px solid rgba(255,183,3,.3);border-radius:20px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3 style="color:#fff;font-size:16px;margin-bottom:18px">✏️ Edit Question</h3>
+    <form method="post" id="editForm">
+      <div class="form-grid">
+        <div class="f-field full"><label>Question</label><input type="text" name="question" id="editQ" required></div>
+        <div class="f-field"><label>Option A (Correct)</label><input type="text" name="opt0" id="editO0" required></div>
+        <div class="f-field"><label>Option B</label><input type="text" name="opt1" id="editO1" required></div>
+        <div class="f-field"><label>Option C</label><input type="text" name="opt2" id="editO2" required></div>
+        <div class="f-field"><label>Option D</label><input type="text" name="opt3" id="editO3" required></div>
+        <div class="f-field">
+          <label>Category</label>
+          <select name="category" id="editCat">
+            {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button type="submit" class="add-btn" style="flex:1">Save Changes ✅</button>
+        <button type="button" onclick="closeEdit()" style="padding:12px 20px;border:1px solid rgba(255,255,255,.2);border-radius:30px;background:none;color:#fff;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function openEdit(id, q, o0, o1, o2, o3, cat){
+  document.getElementById('editQ').value  = q;
+  document.getElementById('editO0').value = o0;
+  document.getElementById('editO1').value = o1;
+  document.getElementById('editO2').value = o2;
+  document.getElementById('editO3').value = o3;
+  document.getElementById('editCat').value = cat;
+  document.getElementById('editForm').action = '/admin/edit_question/' + id;
+  const modal = document.getElementById('editModal');
+  modal.style.display = 'flex';
+}
+function closeEdit(){
+  document.getElementById('editModal').style.display = 'none';
+}
+document.getElementById('editModal').addEventListener('click', function(e){
+  if(e.target === this) closeEdit();
+});
+</script>
+
+{% endblock %}

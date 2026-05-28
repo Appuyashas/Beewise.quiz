@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}BeeXam Result – {{ paper.exam_name }} {{ paper.year }}{% endblock %}
+{% block head %}
+<style>
+.bxr-wrap{max-width:640px;margin:0 auto;padding:28px 16px 80px}
+.bxr-hero{background:linear-gradient(135deg,#1a1a2e,#2d1a4e);border:1.5px solid rgba(168,85,247,.35);border-radius:24px;padding:32px 24px;text-align:center;margin-bottom:20px}
+.bxr-exam{font-size:12px;font-weight:700;color:#c084fc;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.bxr-score-ring{width:110px;height:110px;border-radius:50%;background:conic-gradient(#a855f7 {{ pct }}%, rgba(255,255,255,.08) 0);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;position:relative}
+.bxr-score-ring::before{content:'';position:absolute;width:86px;height:86px;border-radius:50%;background:#1a1a2e}
+.bxr-score-num{position:relative;z-index:1;font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:#fff}
+.bxr-grade{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:800;color:#fff;margin-bottom:6px}
+.bxr-grade-label{font-size:14px;color:rgba(255,255,255,.45);margin-bottom:18px}
+.bxr-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.bxr-stat{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;text-align:center}
+.bxr-stat .val{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:#fff;margin-bottom:3px}
+.bxr-stat .lbl{font-size:11px;color:rgba(255,255,255,.35);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.bxr-stat.correct .val{color:#4ade80}
+.bxr-stat.wrong .val{color:#f87171}
+.bxr-stat.skipped .val{color:#94a3b8}
+
+/* Subject breakdown */
+.bxr-section{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:20px;margin-bottom:16px}
+.bxr-section-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.subj-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.subj-name{font-size:13px;font-weight:700;color:rgba(255,255,255,.8);width:120px;flex-shrink:0}
+.subj-bar-wrap{flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:30px;overflow:hidden}
+.subj-bar{height:100%;border-radius:30px;background:linear-gradient(90deg,#a855f7,#c084fc);transition:.6s}
+.subj-pct{font-size:12px;font-weight:700;color:#c084fc;width:38px;text-align:right;flex-shrink:0}
+
+/* Cutoff card */
+.bxr-cutoff{background:rgba(168,85,247,.08);border:1.5px solid rgba(168,85,247,.25);border-radius:18px;padding:20px;margin-bottom:16px;text-align:center}
+.bxr-cutoff-title{font-size:13px;font-weight:700;color:#c084fc;margin-bottom:12px;text-transform:uppercase;letter-spacing:.6px}
+.bxr-verdict{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;margin-bottom:6px}
+.bxr-verdict.pass{color:#4ade80}
+.bxr-verdict.fail{color:#f87171}
+.bxr-verdict-sub{font-size:13px;color:rgba(255,255,255,.4)}
+.cutoff-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.06);font-size:13px}
+.cutoff-row .c-label{color:rgba(255,255,255,.5)}
+.cutoff-row .c-val{font-weight:700;color:#fff}
+
+/* Answers review */
+.bxr-ans-row{padding:14px 0;border-bottom:1px solid rgba(255,255,255,.05);display:flex;gap:12px;align-items:flex-start}
+.bxr-ans-icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:1px}
+.bxr-ans-icon.c{background:rgba(74,222,128,.15);color:#4ade80}
+.bxr-ans-icon.w{background:rgba(248,113,113,.15);color:#f87171}
+.bxr-ans-icon.s{background:rgba(148,163,184,.1);color:#94a3b8}
+.bxr-ans-q{font-size:13px;font-weight:600;color:rgba(255,255,255,.8);margin-bottom:5px;line-height:1.4}
+.bxr-ans-detail{font-size:12px;color:rgba(255,255,255,.35)}
+.bxr-ans-detail span{color:#4ade80;font-weight:700}
+
+.bxr-actions{display:flex;gap:10px;margin-top:20px}
+.bxr-btn{flex:1;padding:14px;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;text-align:center;text-decoration:none;display:block;transition:.2s}
+.bxr-btn:hover{transform:translateY(-2px)}
+.bxr-btn.primary{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff}
+.bxr-btn.secondary{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.12)}
+
+/* bee-mode */
+body.bee-mode .bxr-hero{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .bxr-grade{color:#1a1a2e !important}
+body.bee-mode .bxr-grade-label{color:#7a5a00 !important}
+body.bee-mode .bxr-stat{background:#fff !important;border-color:#fde68a !important}
+body.bee-mode .bxr-stat .lbl{color:#7a5a00 !important}
+body.bee-mode .bxr-section{background:#fff !important;border-color:#fde68a !important}
+body.bee-mode .bxr-cutoff{background:#fff3b0 !important;border-color:#ffd84d !important}
+body.bee-mode .cutoff-row .c-label{color:#7a5a00 !important}
+body.bee-mode .cutoff-row .c-val{color:#1a1a2e !important}
+body.bee-mode .bxr-ans-q{color:#1a1a2e !important}
+body.bee-mode .bxr-score-ring::before{background:#fff !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="bxr-wrap">
+
+  <!-- Hero -->
+  <div class="bxr-hero">
+    <div class="bxr-exam">🎓 {{ paper.exam_name }} · {{ paper.year }} · {{ paper.subject }}</div>
+    <div class="bxr-score-ring">
+      <div class="bxr-score-num">{{ pct|round|int }}%</div>
+    </div>
+    <div class="bxr-grade">{{ grade }}</div>
+    <div class="bxr-grade-label">{{ score }} correct out of {{ total }} questions</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="bxr-stats">
+    <div class="bxr-stat correct">
+      <div class="val">{{ score }}</div>
+      <div class="lbl">Correct</div>
+    </div>
+    <div class="bxr-stat wrong">
+      <div class="val">{{ wrong }}</div>
+      <div class="lbl">Wrong</div>
+    </div>
+    <div class="bxr-stat skipped">
+      <div class="val">{{ skipped }}</div>
+      <div class="lbl">Skipped</div>
+    </div>
+  </div>
+
+  <!-- Cutoff comparison -->
+  {% if paper.cutoff %}
+  <div class="bxr-cutoff">
+    <div class="bxr-cutoff-title">📊 Cutoff Comparison</div>
+    {% if score >= paper.cutoff %}
+    <div class="bxr-verdict pass">✅ You would have qualified!</div>
+    <div class="bxr-verdict-sub">Your score beats the {{ paper.exam_name }} {{ paper.year }} cutoff</div>
+    {% else %}
+    <div class="bxr-verdict fail">❌ Below Cutoff</div>
+    <div class="bxr-verdict-sub">{{ paper.cutoff - score }} more marks needed to qualify</div>
+    {% endif %}
+    <div class="cutoff-row"><span class="c-label">Your Score</span><span class="c-val" style="color:{% if score >= paper.cutoff %}#4ade80{% else %}#f87171{% endif %}">{{ score }} / {{ total }}</span></div>
+    <div class="cutoff-row"><span class="c-label">Cutoff Score</span><span class="c-val">{{ paper.cutoff }} / {{ total }}</span></div>
+    <div class="cutoff-row"><span class="c-label">Your Percentage</span><span class="c-val">{{ pct|round(1) }}%</span></div>
+  </div>
+  {% endif %}
+
+  <!-- Subject breakdown -->
+  {% if cat_stats %}
+  <div class="bxr-section">
+    <div class="bxr-section-title">📚 Subject Breakdown</div>
+    {% for row in cat_stats %}
+    <div class="subj-row">
+      <div class="subj-name">{{ row.cat }}</div>
+      <div class="subj-bar-wrap"><div class="subj-bar" style="width:{{ row.pct }}%"></div></div>
+      <div class="subj-pct">{{ row.pct|round|int }}%</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Answer Review -->
+  <div class="bxr-section">
+    <div class="bxr-section-title">📝 Answer Review</div>
+    {% for r in review %}
+    <div class="bxr-ans-row">
+      <div class="bxr-ans-icon {% if r.skipped %}s{% elif r.correct %}c{% else %}w{% endif %}">
+        {% if r.skipped %}–{% elif r.correct %}✓{% else %}✗{% endif %}
+      </div>
+      <div>
+        <div class="bxr-ans-q">{{ r.q }}</div>
+        <div class="bxr-ans-detail">
+          {% if r.skipped %}
+            Skipped · Correct: <span>{{ r.correct_text }}</span>
+          {% elif r.correct %}
+            Correct ✓
+          {% else %}
+            Your answer: {{ r.user_text }} · Correct: <span>{{ r.correct_text }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="bxr-actions">
+    <a href="/beexam" class="bxr-btn secondary">← Back to BeeXam</a>
+    <a href="/mode" class="bxr-btn primary">🏠 All Modes</a>
+  </div>
+
+</div>
+{% endblock %}

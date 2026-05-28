@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – CustomizeBee Result{% endblock %}
+{% block head %}
+<style>
+.res-wrap{max-width:700px;margin:0 auto;padding:40px 20px 100px;text-align:center}
+.res-bee{font-size:72px;display:block;animation:beeBounce 1.5s ease-in-out infinite;margin-bottom:8px}
+@keyframes beeBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.res-mode{font-size:13px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.res-pct{font-family:'Space Grotesk',sans-serif;font-size:72px;font-weight:800;
+  background:linear-gradient(135deg,#FFD84D,#FB8500);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:4px}
+.res-msg{font-size:18px;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:24px}
+.unranked-note{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);
+  border-radius:12px;padding:10px 20px;display:inline-block;
+  color:#10b981;font-size:13px;font-weight:700;margin-bottom:28px}
+.stats-row{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-bottom:32px}
+.s-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,183,3,.15);
+  border-radius:16px;padding:16px 24px;min-width:110px}
+.s-card .val{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#FFB703}
+.s-card .lbl{font-size:11px;color:rgba(255,255,255,.4);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.action-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:36px}
+.btn-honey{padding:13px 28px;border:none;border-radius:40px;font-family:'Nunito',sans-serif;
+  font-size:15px;font-weight:800;cursor:pointer;text-decoration:none;
+  background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;
+  transition:.25s;display:inline-block}
+.btn-honey:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(251,133,0,.4)}
+.btn-ghost{padding:12px 24px;border:1.5px solid rgba(255,255,255,.15);border-radius:40px;
+  font-family:'Nunito',sans-serif;font-size:15px;font-weight:700;cursor:pointer;
+  text-decoration:none;color:rgba(255,255,255,.7);transition:.2s;display:inline-block}
+.btn-ghost:hover{background:rgba(255,255,255,.08)}
+/* Review */
+.review-section{text-align:left}
+.review-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;
+  color:#fff;margin-bottom:16px;text-align:left}
+.fb-card{border-radius:16px;padding:16px 18px;margin-bottom:12px}
+.fb-card.correct{background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(16,185,129,.08));
+  border:1px solid rgba(16,185,129,.3)}
+.fb-card.wrong{background:linear-gradient(135deg,rgba(239,68,68,.12),rgba(239,68,68,.06));
+  border:1px solid rgba(239,68,68,.25)}
+.fb-icon{font-size:18px;margin-right:8px}
+.fb-q{font-size:14px;font-weight:700;color:#fff;margin-bottom:8px;line-height:1.4}
+.fb-ans{font-size:13px;color:rgba(255,255,255,.55);line-height:1.6}
+.fb-correct{color:#10b981;font-weight:700}
+.fb-wrong{color:#ef4444;font-weight:700}
+/* Bee mode */
+body.bee-mode .res-mode{color:#7a5a00 !important}
+body.bee-mode .res-msg{color:#5a4a00 !important}
+body.bee-mode .s-card{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .s-card .val{color:#c05000 !important}
+body.bee-mode .s-card .lbl{color:#7a5a00 !important}
+body.bee-mode .review-title{color:#1a1a2e !important}
+body.bee-mode .fb-q{color:#1a1a2e !important}
+body.bee-mode .fb-ans{color:#5a4a00 !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="res-wrap">
+  <span class="res-bee">{% if pct >= 80 %}🎉{% elif pct >= 60 %}🐝{% else %}😔{% endif %}</span>
+  <div class="res-mode">🎨 CustomizeBee Result</div>
+  <div class="res-pct">{{ pct }}%</div>
+  <div class="res-msg">
+    {% if pct == 100 %}Perfect Score! Amazing! 🌟
+    {% elif pct >= 80 %}Great job! Well done! 🐝
+    {% elif pct >= 60 %}Good effort! Keep going! 👍
+    {% elif pct >= 40 %}Not bad — practice makes perfect! 📚
+    {% else %}Keep studying — you'll get there! 💪{% endif %}
+  </div>
+  <div class="unranked-note">✅ Unranked — this doesn't affect your leaderboard position</div>
+
+  <div class="stats-row">
+    <div class="s-card"><div class="val">{{ score }}</div><div class="lbl">Correct</div></div>
+    <div class="s-card"><div class="val">{{ total - score }}</div><div class="lbl">Wrong</div></div>
+    <div class="s-card"><div class="val">{{ total }}</div><div class="lbl">Total</div></div>
+  </div>
+
+  <div class="action-btns">
+    <a href="/customizebee" class="btn-honey">Try Again 🎨</a>
+    <a href="/dashboard" class="btn-ghost">Dashboard</a>
+    <a href="/mode" class="btn-ghost">Play Modes</a>
+  </div>
+
+  {% if log %}
+  <div class="review-section">
+    <div class="review-title">📝 Answer Review</div>
+    {% for entry in log %}
+    {% set is_correct = entry.chosen == entry.correct %}
+    <div class="fb-card {{ 'correct' if is_correct else 'wrong' }}">
+      <div class="fb-q">
+        <span class="fb-icon">{{ '✅' if is_correct else '❌' }}</span>
+        {{ entry.q }}
+      </div>
+      <div class="fb-ans">
+        {% if is_correct %}
+          <span class="fb-correct">Your answer: {{ entry.options[entry.chosen] }} ✓</span>
+        {% else %}
+          <span class="fb-wrong">Your answer: {{ entry.options[entry.chosen] if entry.chosen >= 0 else 'No answer' }}</span><br>
+          <span class="fb-correct">Correct: {{ entry.options[entry.correct] }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

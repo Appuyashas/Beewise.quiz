@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – My Profile{% endblock %}
+{% block head %}
+<style>
+.profile-wrap{max-width:860px;margin:0 auto;padding:36px 24px 60px}
+.profile-header{display:flex;align-items:center;gap:24px;background:rgba(255,255,255,.05);border:1px solid rgba(255,183,3,.15);border-radius:24px;padding:28px;margin-bottom:28px;animation:fadeUp .5s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.avatar-big{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#FFD84D,#FB8500);display:flex;align-items:center;justify-content:center;font-size:40px;flex-shrink:0;box-shadow:0 8px 24px rgba(255,183,3,.3)}
+.profile-info h2{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:#fff;margin-bottom:4px}
+.profile-info p{color:rgba(255,255,255,.45);font-size:14px}
+.streak-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(251,133,0,.15);border:1px solid rgba(251,133,0,.3);border-radius:30px;padding:4px 14px;font-size:13px;font-weight:700;color:#FB8500;margin-top:8px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+.section-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#fff;margin-bottom:14px}
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.s-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,183,3,.12);border-radius:14px;padding:16px;text-align:center}
+.s-card .v{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:var(--honey)}
+.s-card .l{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-top:3px}
+/* Avatar picker */
+.avatar-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+.av-btn{width:100%;aspect-ratio:1;border-radius:12px;border:2px solid transparent;background:rgba(255,255,255,.06);font-size:24px;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center}
+.av-btn:hover{background:rgba(255,183,3,.15);border-color:rgba(255,183,3,.3)}
+.av-btn.selected{border-color:#FB8500;background:rgba(255,183,3,.2)}
+/* Password form */
+.pw-form{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:20px}
+.f-field{margin-bottom:14px}
+.f-field label{display:block;font-size:12px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.f-field input{width:100%;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;font-family:'Nunito',sans-serif;font-size:14px;color:#fff;outline:none;transition:.2s}
+.f-field input:focus{border-color:var(--honey)}
+.save-btn{padding:11px 24px;border:none;border-radius:30px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;transition:.2s}
+.save-btn:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(255,183,3,.4)}
+/* Achievements */
+.ach-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ach-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 12px;text-align:center;transition:.2s}
+.ach-card.earned{background:rgba(255,183,3,.08);border-color:rgba(255,183,3,.25)}
+.ach-card.secret:not(.earned){opacity:.4}
+.ach-icon{font-size:28px;margin-bottom:6px;display:block}
+.ach-name{font-size:12px;font-weight:700;color:rgba(255,255,255,.8);margin-bottom:2px}
+.ach-desc{font-size:11px;color:rgba(255,255,255,.4)}
+.ach-card.earned .ach-name{color:#FFD84D}
+.locked-icon{font-size:22px;filter:grayscale(1);opacity:.4}
+/* Cat bars */
+.cat-bar-wrap{margin-bottom:10px}
+.cat-bar-label{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--text-soft);margin-bottom:5px}
+.cat-bar-label span{color:var(--text-muted)}
+.bar-bg{height:8px;background:var(--stat-bg);border-radius:10px;overflow:hidden;border:1px solid var(--stat-border)}
+.bar-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,#FFD84D,#FB8500)}
+.bar-fill.low{background:linear-gradient(90deg,#f87171,#ef4444)}
+.bar-fill.mid{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}.ach-grid{grid-template-columns:repeat(2,1fr)}.profile-header{flex-direction:column;text-align:center}}
+
+/* Bee mode profile fixes */
+body.bee-mode .cat-bar-label { color:#1a1a2e !important; }
+body.bee-mode .cat-bar-label span { color:#c05000 !important; }
+body.bee-mode .bar-bg  { background:#ffe9a0 !important; border:1px solid #ffd84d !important; }
+body.bee-mode .bar-fill,
+body.bee-mode .bar-fill.low,
+body.bee-mode .bar-fill.mid { background:linear-gradient(90deg,#FB8500,#c05000) !important; }
+body.bee-mode .stat-card { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .stat-card .v { color:#c05000 !important; }
+body.bee-mode .stat-card .l { color:#5a4a00 !important; }
+body.bee-mode .settings-card { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .settings-card h3,
+body.bee-mode .settings-card label,
+body.bee-mode .settings-card p { color:#1a1a2e !important; }
+body.bee-mode .save-btn { background:linear-gradient(135deg,#FFB703,#FB8500) !important; color:#1a1a2e !important; }
+body.bee-mode .history-table th { background:#1a1a2e !important; color:#FFD84D !important; }
+body.bee-mode .history-table td { color:#1a1a2e !important; border-color:#ffd84d !important; }
+body.bee-mode .result-link { color:#c05000 !important; }
+body.bee-mode .profile-wrap { color:#1a1a2e !important; }
+body.bee-mode .ach-card { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .ach-name { color:#1a1a2e !important; }
+body.bee-mode .ach-desc { color:#5a4a00 !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="profile-wrap">
+  <!-- Header -->
+  <div class="profile-header">
+    <div class="avatar-big">{{ user.avatar or '🐝' }}</div>
+    <div class="profile-info">
+      <h2>{{ session.username }}</h2>
+      <p>Member since {{ user.created[:10] }}</p>
+      <div class="streak-pill">🔥 {{ user.streak or 0 }} day streak</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Stats -->
+    <div>
+      <div class="section-title">📊 Your Stats</div>
+      <div class="stat-grid">
+        <div class="s-card"><div class="v">{{ stats.games or 0 }}</div><div class="l">Games</div></div>
+        <div class="s-card"><div class="v">{{ stats.avg_pct or 0 }}%</div><div class="l">Avg Score</div></div>
+        <div class="s-card"><div class="v">{{ stats.best or 0 }}%</div><div class="l">Best Score</div></div>
+        <div class="s-card"><div class="v">{{ ((stats.total_time or 0)//60) }}m</div><div class="l">Time Played</div></div>
+      </div>
+      <div class="section-title">📚 Category Scores</div>
+      {% if cat_stats %}
+        {% for c in cat_stats %}
+        <div class="cat-bar-wrap">
+          <div class="cat-bar-label">{{ c.category }}<span>{{ c.pct or 0 }}%</span></div>
+          <div class="bar-bg"><div class="bar-fill {% if (c.pct or 0)<50 %}low{% elif (c.pct or 0)<75 %}mid{% endif %}" style="width:{{ c.pct or 0 }}%"></div></div>
+        </div>
+        {% endfor %}
+      {% else %}<p style="color:rgba(255,255,255,.3);font-size:14px">Play some games first!</p>{% endif %}
+    </div>
+
+    <!-- Avatar + Password -->
+    <div>
+      <div class="section-title">🐝 Choose Avatar</div>
+      <form method="post">
+        <input type="hidden" name="action" value="change_avatar">
+        <div class="avatar-grid">
+          {% for av in avatars %}
+          <button type="submit" name="avatar" value="{{ av }}"
+            class="av-btn {% if av == (user.avatar or '🐝') %}selected{% endif %}">{{ av }}</button>
+          {% endfor %}
+        </div>
+      </form>
+
+
+
+
+
+      <div class="section-title" style="margin-top:20px">🏫 My Classes</div>
+      <div class="pw-form">
+        {% if my_classes %}
+          {% for cl in my_classes %}
+          <div style="display:flex;justify-content:space-between;align-items:center;
+                      padding:10px 14px;background:var(--stat-bg);border:1px solid var(--stat-border);
+                      border-radius:12px;margin-bottom:8px">
+            <div>
+              <div style="font-size:14px;font-weight:800;color:var(--honey)">{{ cl.name }}</div>
+              <div style="font-size:12px;color:var(--text-muted);letter-spacing:2px;margin-top:2px">Code: {{ cl.code }}</div>
+            </div>
+            <form method="post" action="/leave_class/{{ cl.id }}"
+                  onsubmit="return confirm('Leave this class?')">
+              <button style="background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3);
+                             padding:6px 14px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">
+                Leave
+              </button>
+            </form>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+            You haven't joined any class yet. Ask your teacher for a class code!
+          </p>
+        {% endif %}
+
+        <form method="post" action="/join_class"
+              style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <input type="text" name="class_code"
+                 placeholder="Enter class code (e.g. BCA2A6)"
+                 maxlength="6"
+                 style="flex:1;min-width:160px;padding:10px 14px;
+                        border:1.5px solid var(--input-border);border-radius:10px;
+                        font-family:'Nunito',sans-serif;font-size:14px;
+                        color:var(--input-text);background:var(--input-bg);
+                        outline:none;text-transform:uppercase;letter-spacing:2px"
+                 required>
+          <button type="submit" class="save-btn">Join 🏫</button>
+        </form>
+      </div>
+
+      <div class="section-title" style="margin-top:20px">🔐 Change Password</div>
+      <div class="pw-form">
+        <form method="post">
+          <input type="hidden" name="action" value="change_password">
+          <div class="f-field"><label>Current Password</label><input type="password" name="old_password" required></div>
+          <div class="f-field"><label>New Password</label><input type="password" name="new_password" required placeholder="Min. 4 characters"></div>
+          <button type="submit" class="save-btn">Update Password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Achievements -->
+  <div class="section-title">🏅 Achievements ({{ earned_ids|length }}/{{ all_achievements|length }})</div>
+  <div class="ach-grid">
+    {% for ach in all_achievements %}
+    {% set is_earned = ach.id in earned_ids %}
+    <div class="ach-card {% if is_earned %}earned{% endif %} {% if ach.secret and not is_earned %}secret{% endif %}">
+      <span class="ach-icon {% if not is_earned %}locked-icon{% endif %}">
+        {% if is_earned %}{{ ach.icon }}{% elif ach.secret %}🔒{% else %}{{ ach.icon }}{% endif %}
+      </span>
+      <div class="ach-name">{% if ach.secret and not is_earned %}???{% else %}{{ ach.name }}{% endif %}</div>
+      <div class="ach-desc">{% if ach.secret and not is_earned %}Secret achievement{% else %}{{ ach.desc }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

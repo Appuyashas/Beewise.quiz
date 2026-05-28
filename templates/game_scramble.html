@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Word Scramble 🔤{% endblock %}
+{% block head %}
+<style>
+.ws-wrap{max-width:480px;margin:0 auto;padding:24px 16px 80px}
+.ws-header{text-align:center;margin-bottom:24px}
+.ws-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:#fff;margin-bottom:4px}
+.ws-subtitle{font-size:13px;color:rgba(255,255,255,.4)}
+.ws-start{text-align:center;padding:20px 0}
+.ws-start-icon{font-size:72px;margin-bottom:16px;display:block}
+.ws-cat{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:20px 0}
+.ws-cat-btn{padding:8px 16px;border-radius:30px;border:1.5px solid rgba(251,146,60,.3);background:rgba(251,146,60,.07);color:rgba(255,255,255,.5);font-size:12px;font-weight:700;cursor:pointer;transition:.2s;font-family:'Nunito',sans-serif}
+.ws-cat-btn:hover,.ws-cat-btn.active{background:rgba(251,146,60,.2);border-color:#fb923c;color:#fb923c}
+.ws-start-btn{background:linear-gradient(135deg,#fb923c,#ea580c);color:#fff;border:none;padding:16px 40px;border-radius:30px;font-size:17px;font-weight:800;cursor:pointer;transition:.2s;font-family:'Nunito',sans-serif;margin-top:10px}
+.ws-start-btn:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(251,146,60,.4)}
+.ws-game{display:none}
+.ws-hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.ws-hud-stat{background:rgba(251,146,60,.1);border:1.5px solid rgba(251,146,60,.25);border-radius:30px;padding:6px 16px;font-size:13px;font-weight:800;color:#fb923c;font-family:'Space Grotesk',sans-serif}
+.ws-hud-stat span{color:#fff}
+.ws-timer-bar{height:8px;background:rgba(255,255,255,.08);border-radius:30px;margin-bottom:18px;overflow:hidden}
+.ws-timer-fill{height:100%;background:linear-gradient(90deg,#fb923c,#fbbf24);border-radius:30px;transition:width .1s linear}
+.ws-timer-fill.danger{background:linear-gradient(90deg,#f87171,#fca5a5)}
+.ws-cat-badge{display:inline-block;padding:4px 14px;border-radius:20px;background:rgba(251,146,60,.15);color:#fb923c;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;border:1px solid rgba(251,146,60,.25)}
+.ws-scrambled{font-family:'Space Grotesk',sans-serif;font-size:38px;font-weight:800;color:#fff;text-align:center;letter-spacing:8px;margin:16px 0 8px;background:rgba(255,255,255,.04);border:1.5px solid rgba(251,146,60,.2);border-radius:18px;padding:20px}
+.ws-hint{font-size:12px;color:rgba(255,255,255,.3);text-align:center;margin-bottom:16px}
+.ws-input-wrap{display:flex;gap:10px;margin-bottom:12px}
+.ws-input{flex:1;padding:14px 18px;border-radius:14px;border:1.5px solid rgba(251,146,60,.3);background:rgba(255,255,255,.05);color:#fff;font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;outline:none;text-transform:uppercase;letter-spacing:3px;text-align:center}
+.ws-input:focus{border-color:#fb923c;background:rgba(251,146,60,.08)}
+.ws-submit{padding:14px 20px;border:none;border-radius:14px;background:linear-gradient(135deg,#fb923c,#ea580c);color:#fff;font-size:18px;cursor:pointer;transition:.2s}
+.ws-submit:hover{transform:scale(1.05)}
+.ws-actions{display:flex;gap:8px;margin-bottom:12px}
+.ws-action-btn{flex:1;padding:10px;border-radius:12px;border:1.5px solid rgba(251,146,60,.2);background:rgba(251,146,60,.06);color:rgba(255,255,255,.5);font-size:12px;font-weight:700;cursor:pointer;transition:.2s;font-family:'Nunito',sans-serif}
+.ws-action-btn:hover{border-color:#fb923c;color:#fb923c}
+.ws-action-btn:disabled{opacity:.3;cursor:not-allowed}
+.ws-feedback{text-align:center;font-size:15px;font-weight:800;min-height:24px;margin-bottom:8px;transition:.3s}
+.ws-feedback.correct{color:#4ade80}
+.ws-feedback.wrong{color:#f87171}
+.ws-lives{display:flex;gap:4px;justify-content:center;margin-bottom:12px}
+.ws-result{display:none;text-align:center;padding:20px 0}
+.ws-result-score{font-family:'Space Grotesk',sans-serif;font-size:56px;font-weight:800;color:#fb923c;margin:12px 0}
+.ws-result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+.ws-result-stat{background:rgba(255,255,255,.05);border-radius:14px;padding:14px}
+.ws-result-stat .v{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;color:#fff}
+.ws-result-stat .l{font-size:10px;color:rgba(255,255,255,.3);font-weight:700;text-transform:uppercase;margin-top:3px}
+.ws-btn{width:100%;padding:14px;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:.2s;margin-bottom:8px}
+.ws-btn.pri{background:linear-gradient(135deg,#fb923c,#ea580c);color:#fff}
+.ws-btn.sec{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
+.ws-btn:hover{transform:translateY(-2px)}
+body.bee-mode .ws-title{color:#1a1a2e !important}
+body.bee-mode .ws-hud-stat{background:#ffedd5 !important;border-color:#fb923c !important;color:#9a3412 !important}
+body.bee-mode .ws-hud-stat span{color:#1a1a2e !important}
+body.bee-mode .ws-scrambled{background:#fff !important;border-color:#fb923c !important;color:#1a1a2e !important}
+body.bee-mode .ws-input{background:#fff !important;border-color:#fb923c !important;color:#1a1a2e !important}
+body.bee-mode .ws-action-btn{background:#fff !important;color:#9a3412 !important;border-color:#fecaca !important}
+body.bee-mode .ws-result-stat{background:#fff7ed !important}
+body.bee-mode .ws-result-stat .v{color:#1a1a2e !important}
+body.bee-mode .ws-cat-btn{background:#fff !important;color:#9a3412 !important;border-color:#fed7aa !important}
+body.bee-mode .ws-cat-btn.active{background:#fb923c !important;color:#fff !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="ws-wrap">
+  <div class="ws-header">
+    <div class="ws-title">🔀 Word Scramble</div>
+    <div class="ws-subtitle">Unscramble the word before time runs out!</div>
+  </div>
+
+  <!-- Start -->
+  <div class="ws-start" id="wsStart">
+    <span class="ws-start-icon">🔤</span>
+    <p style="color:rgba(255,255,255,.5);font-size:14px">10 words, 20 seconds each. Use hints wisely!</p>
+    <div class="ws-cat">
+      <button class="ws-cat-btn active" onclick="setCat('mix')" id="cMix">🎲 Mix</button>
+      <button class="ws-cat-btn" onclick="setCat('science')" id="cScience">🔬 Science</button>
+      <button class="ws-cat-btn" onclick="setCat('geography')" id="cGeography">🌍 Geography</button>
+      <button class="ws-cat-btn" onclick="setCat('animals')" id="cAnimals">🐾 Animals</button>
+      <button class="ws-cat-btn" onclick="setCat('tech')" id="cTech">💻 Tech</button>
+    </div>
+    <button class="ws-start-btn" onclick="startGame()">Start 🔀</button>
+  </div>
+
+  <!-- Game -->
+  <div class="ws-game" id="wsGame">
+    <div class="ws-hud">
+      <div class="ws-hud-stat">⭐ <span id="wsScore">0</span></div>
+      <div class="ws-hud-stat">Q <span id="wsQnum">1</span>/10</div>
+      <div class="ws-hud-stat">💡 <span id="wsHints">2</span> hints</div>
+    </div>
+    <div class="ws-timer-bar"><div class="ws-timer-fill" id="wsTimerFill"></div></div>
+    <div style="text-align:center">
+      <div class="ws-cat-badge" id="wsCatBadge">Category</div>
+    </div>
+    <div class="ws-scrambled" id="wsScrambled">?</div>
+    <div class="ws-hint" id="wsHintText">_ _ _ _ _</div>
+    <div class="ws-lives" id="wsLives"></div>
+    <div class="ws-feedback" id="wsFeedback"></div>
+    <div class="ws-input-wrap">
+      <input type="text" class="ws-input" id="wsInput" placeholder="TYPE HERE" maxlength="20"
+             oninput="this.value=this.value.toUpperCase()"
+             onkeydown="if(event.key==='Enter')checkAnswer()">
+      <button class="ws-submit" onclick="checkAnswer()">→</button>
+    </div>
+    <div class="ws-actions">
+      <button class="ws-action-btn" id="hintBtn" onclick="useHint()">💡 Hint</button>
+      <button class="ws-action-btn" onclick="skipWord()">⏭ Skip</button>
+      <button class="ws-action-btn" onclick="reshuffleWord()">🔀 Reshuffle</button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="ws-result" id="wsResult">
+    <div style="font-size:48px">🏆</div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:rgba(255,255,255,.5);margin-top:8px">Final Score</div>
+    <div class="ws-result-score" id="wsFinalScore">0</div>
+    <div class="ws-result-grid">
+      <div class="ws-result-stat"><div class="v" id="wrSolved">0</div><div class="l">Solved</div></div>
+      <div class="ws-result-stat"><div class="v" id="wrSkipped">0</div><div class="l">Skipped</div></div>
+      <div class="ws-result-stat"><div class="v" id="wrAvg">0s</div><div class="l">Avg Time</div></div>
+    </div>
+    <button class="ws-btn pri" onclick="startGame()">▶ Play Again</button>
+    <button class="ws-btn sec" onclick="goStart()">← Change Category</button>
+    <button class="ws-btn sec" onclick="window.location='/games'">🕹️ All Games</button>
+  </div>
+</div>
+
+<script>
+const WORDS = {
+  science:  [{w:'GRAVITY',h:'Force that pulls things down'},{w:'NUCLEUS',h:'Centre of an atom'},{w:'OXYGEN',h:'Gas we breathe'},{w:'PHOTON',h:'Particle of light'},{w:'NEUTRON',h:'Neutral subatomic particle'},{w:'ENZYME',h:'Biological catalyst'},{w:'PLASMA',h:'4th state of matter'},{w:'OSMOSIS',h:'Water through a membrane'},{w:'PROTON',h:'Positive subatomic particle'},{w:'VOLTAGE',h:'Electrical pressure'}],
+  geography:[{w:'AMAZON',h:'Longest river in South America'},{w:'SAHARA',h:'Largest hot desert'},{w:'PACIFIC',h:'Largest ocean'},{w:'EVEREST',h:'Highest mountain'},{w:'TOKYO',h:'Capital of Japan'},{w:'BRAZIL',h:'Largest South American country'},{w:'NILE',h:'River in Egypt'},{w:'GANGES',h:'Sacred river in India'},{w:'ARCTIC',h:'Polar region up north'},{w:'ANDES',h:'Mountain range in South America'}],
+  animals:  [{w:'DOLPHIN',h:'Intelligent sea mammal'},{w:'CHEETAH',h:'Fastest land animal'},{w:'PENGUIN',h:'Flightless bird from Antarctica'},{w:'ELEPHANT',h:'Largest land animal'},{w:'OCTOPUS',h:'8-armed sea creature'},{w:'GIRAFFE',h:'Tallest animal'},{w:'JAGUAR',h:'Big cat from the Americas'},{w:'PYTHON',h:'Large constrictor snake'},{w:'PEACOCK',h:'Bird with colourful tail'},{w:'FALCON',h:'Fast hunting bird'}],
+  tech:     [{w:'PYTHON',h:'Popular programming language'},{w:'BROWSER',h:'Opens websites'},{w:'SERVER',h:'Computer that serves data'},{w:'PIXEL',h:'Smallest screen dot'},{w:'ROUTER',h:'Connects devices to internet'},{w:'BINARY',h:'0s and 1s'},{w:'CACHE',h:'Fast temporary storage'},{w:'KERNEL',h:'Core of an OS'},{w:'SYNTAX',h:'Code grammar rules'},{w:'GITHUB',h:'Code hosting platform'}],
+};
+
+let cat='mix', words=[], idx=0, score=0, solved=0, skipped=0, hints=2;
+let qtimer=null, qstart=0, times=[], currentWord='', locked=false;
+
+function setCat(c){
+  cat=c;
+  document.querySelectorAll('.ws-cat-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('c'+c.charAt(0).toUpperCase()+c.slice(1)).classList.add('active');
+}
+
+function scramble(w){
+  let arr=w.split('');
+  do{ arr.sort(()=>Math.random()-.5); }while(arr.join('')===w && w.length>2);
+  return arr.join('');
+}
+
+function startGame(){
+  let pool;
+  if(cat==='mix'){
+    pool=Object.values(WORDS).flat();
+    pool.sort(()=>Math.random()-.5);
+    pool=pool.slice(0,10);
+  } else {
+    pool=[...WORDS[cat]].sort(()=>Math.random()-.5).slice(0,10);
+  }
+  words=pool; idx=0; score=0; solved=0; skipped=0; hints=2; times=[]; locked=false;
+  document.getElementById('wsStart').style.display='none';
+  document.getElementById('wsResult').style.display='none';
+  document.getElementById('wsGame').style.display='block';
+  document.getElementById('wsHints').textContent='2';
+  loadWord();
+}
+
+function loadWord(){
+  if(idx>=words.length){ endGame(); return; }
+  locked=false;
+  const entry=words[idx];
+  currentWord=entry.w;
+  document.getElementById('wsQnum').textContent=idx+1;
+  document.getElementById('wsScore').textContent=score;
+  document.getElementById('wsScrambled').textContent=scramble(currentWord);
+  document.getElementById('wsCatBadge').textContent=cat==='mix'?'🎲 Mixed':cat.charAt(0).toUpperCase()+cat.slice(1);
+  document.getElementById('wsHintText').textContent='_ '.repeat(currentWord.length).trim();
+  document.getElementById('wsFeedback').textContent='';
+  document.getElementById('wsFeedback').className='ws-feedback';
+  document.getElementById('wsInput').value='';
+  document.getElementById('wsInput').focus();
+  document.getElementById('hintBtn').disabled=(hints<=0);
+  document.getElementById('hintBtn').textContent='💡 Hint';
+  let hintRevealed=0;
+  // timer
+  clearInterval(qtimer);
+  let left=200, total=200;
+  const fill=document.getElementById('wsTimerFill');
+  fill.style.width='100%'; fill.className='ws-timer-fill';
+  qstart=Date.now();
+  qtimer=setInterval(()=>{
+    left--;
+    fill.style.width=(left/total*100)+'%';
+    if(left<60) fill.className='ws-timer-fill danger';
+    if(left<=0){ clearInterval(qtimer); timeOut(); }
+  },100);
+}
+
+function checkAnswer(){
+  if(locked) return;
+  const val=document.getElementById('wsInput').value.toUpperCase().trim();
+  if(!val) return;
+  if(val===currentWord){
+    locked=true; clearInterval(qtimer);
+    const t=Math.round((Date.now()-qstart)/1000); times.push(t);
+    const bonus=Math.max(10,30-t); score+=bonus; solved++;
+    document.getElementById('wsFeedback').textContent='✅ Correct! +'+bonus;
+    document.getElementById('wsFeedback').className='ws-feedback correct';
+    document.getElementById('wsScrambled').textContent=currentWord;
+    setTimeout(()=>{ idx++; loadWord(); },900);
+  } else {
+    document.getElementById('wsFeedback').textContent='❌ Try again!';
+    document.getElementById('wsFeedback').className='ws-feedback wrong';
+    document.getElementById('wsInput').value='';
+  }
+}
+
+function useHint(){
+  if(hints<=0) return;
+  hints--; document.getElementById('wsHints').textContent=hints;
+  document.getElementById('hintBtn').textContent='💡 '+words[idx].h;
+  if(hints<=0) document.getElementById('hintBtn').disabled=true;
+}
+
+function reshuffleWord(){
+  document.getElementById('wsScrambled').textContent=scramble(currentWord);
+}
+
+function skipWord(){
+  clearInterval(qtimer);
+  document.getElementById('wsFeedback').textContent='⏭ Skipped — it was: '+currentWord;
+  document.getElementById('wsFeedback').className='ws-feedback wrong';
+  skipped++; times.push(20);
+  setTimeout(()=>{ idx++; loadWord(); },1000);
+}
+
+function timeOut(){
+  if(locked) return; locked=true;
+  document.getElementById('wsFeedback').textContent="⏰ Time's up! Answer: "+currentWord;
+  document.getElementById('wsFeedback').className='ws-feedback wrong';
+  skipped++; times.push(20);
+  setTimeout(()=>{ idx++; loadWord(); },1200);
+}
+
+function endGame(){
+  clearInterval(qtimer);
+  document.getElementById('wsGame').style.display='none';
+  document.getElementById('wsResult').style.display='block';
+  document.getElementById('wsFinalScore').textContent=score;
+  document.getElementById('wrSolved').textContent=solved;
+  document.getElementById('wrSkipped').textContent=skipped;
+  const avg=times.length?Math.round(times.reduce((a,b)=>a+b,0)/times.length):0;
+  document.getElementById('wrAvg').textContent=avg+'s';
+}
+
+function goStart(){
+  clearInterval(qtimer);
+  document.getElementById('wsResult').style.display='none';
+  document.getElementById('wsStart').style.display='block';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Results{% endblock %}
+{% block head %}
+<style>
+.result-wrap{min-height:calc(100vh - 64px);display:flex;align-items:flex-start;justify-content:center;padding:32px 20px 60px}
+.result-inner{width:100%;max-width:580px}
+.result-card{background:#fff;border-radius:28px;padding:40px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.25);animation:popIn .6s cubic-bezier(.34,1.56,.64,1);margin-bottom:20px}
+@keyframes popIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.result-bee{font-size:64px;display:block;margin-bottom:10px;animation:bounce 1.8s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.mode-tag{display:inline-block;padding:5px 16px;border-radius:40px;font-size:13px;font-weight:800;background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;margin-bottom:12px}
+.result-title{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.result-pct{font-family:'Space Grotesk',sans-serif;font-size:54px;font-weight:700;background:linear-gradient(135deg,#FB8500,#FFB703);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin:8px 0}
+.result-msg{font-size:15px;color:#6b7280;margin-bottom:18px}
+.grade-circle{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin:0 auto 18px}
+.grade-A{background:#d1fae5;color:#065f46}.grade-B{background:#dbeafe;color:#1e3a8a}
+.grade-C{background:#fef3c7;color:#92400e}.grade-D{background:#fee2e2;color:#991b1b}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.s-card{background:#f9fafb;border-radius:14px;padding:14px 8px;text-align:center}
+.s-card .val{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-bottom:3px}
+.s-card .lbl{font-size:11px;color:#9ca3af;font-weight:700}
+.val-correct{color:#10b981}.val-wrong{color:#ef4444}.val-total{color:#FB8500}.val-time{color:#6366f1}
+.tab-warn{background:#fef3c7;border:1.5px solid #f59e0b;border-radius:12px;padding:10px 16px;margin-bottom:14px;font-size:13px;font-weight:700;color:#92400e;display:flex;align-items:center;gap:8px}
+.action-row{display:flex;flex-direction:column;gap:10px}
+.play-again-btn{padding:14px;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:16px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;box-shadow:0 6px 20px rgba(251,133,0,.35);transition:.25s;text-decoration:none;display:block;text-align:center}
+.play-again-btn:hover{transform:translateY(-3px)}
+.green-btn{background:linear-gradient(135deg,#10b981,#059669) !important;box-shadow:0 6px 20px rgba(16,185,129,.35) !important;color:#fff !important}
+.dash-btn{padding:12px;border:2px solid #e5e7eb;border-radius:14px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;background:#fff;color:#374151;transition:.2s;text-decoration:none;display:block;text-align:center;cursor:pointer}
+.dash-btn:hover{border-color:#FB8500;color:#FB8500}
+/* Review */
+.review-section{margin-top:8px}
+.review-toggle{width:100%;padding:14px;border:2px solid #e5e7eb;border-radius:14px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:700;background:#fff;color:#374151;cursor:pointer;transition:.2s}
+.review-toggle:hover{border-color:#FB8500;color:#FB8500}
+.review-list{margin-top:14px;display:none;flex-direction:column;gap:12px}
+.review-card{background:#fff;border-radius:16px;padding:18px 20px;box-shadow:0 4px 16px rgba(0,0,0,.08);border-left:4px solid #e5e7eb;text-align:left}
+.review-card.correct{border-left-color:#10b981}
+.review-card.wrong{border-left-color:#ef4444}
+.review-q{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:10px}
+.q-num{color:#FB8500;font-size:12px;font-weight:800;display:block;margin-bottom:4px}
+.review-opts{display:flex;flex-direction:column;gap:6px}
+.opt-item{padding:8px 12px;border-radius:10px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;background:#f9fafb;color:#374151}
+.opt-item.correct-ans{background:#d1fae5;color:#065f46}
+.opt-item.user-wrong{background:#fee2e2;color:#991b1b}
+.review-cat{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(255,183,3,.15);color:#FB8500;margin-bottom:8px}
+/* RapidBee-style review cards */
+.rb-feedback-card{border-radius:20px;padding:20px 22px;margin-bottom:0}
+.rb-correct{background:linear-gradient(135deg,#d1fae5,#a7f3d0)}
+.rb-wrong{background:linear-gradient(135deg,#fee2e2,#fecaca)}
+.rb-top-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.rb-bee{font-size:38px;line-height:1;flex-shrink:0}
+.rb-label-wrap{flex:1}
+.rb-label{font-size:13px;font-weight:800;letter-spacing:.8px;text-transform:uppercase}
+.rb-correct .rb-label{color:#065f46}
+.rb-wrong .rb-label{color:#991b1b}
+.rb-qnum{font-size:11px;color:rgba(0,0,0,.4);margin-top:2px;font-weight:600}
+.rb-result-icon{font-size:26px;flex-shrink:0}
+.rb-qtext{font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:14px;line-height:1.4}
+.rb-opts{display:flex;flex-direction:column;gap:8px}
+.rb-opt{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:rgba(255,255,255,.5);border:2px solid transparent}
+.rb-opt-correct{background:#ffffff !important;border-color:#10b981 !important}
+.rb-opt-wrong{background:rgba(239,68,68,.12) !important;border-color:#ef4444 !important}
+.rb-opt-letter{width:28px;height:28px;border-radius:8px;background:rgba(0,0,0,.1);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;color:#1a1a2e;flex-shrink:0}
+.rb-opt-correct .rb-opt-letter{background:#10b981;color:#fff}
+.rb-opt-wrong .rb-opt-letter{background:#ef4444;color:#fff}
+.rb-opt-text{font-size:14px;font-weight:600;color:#1a1a2e;flex:1}
+.rb-opt-tag{font-size:11px;font-weight:700;margin-left:auto;white-space:nowrap}
+.rb-opt-correct .rb-opt-tag{color:#065f46}
+.rb-opt-wrong .rb-opt-tag{color:#991b1b}
+@media print {
+  nav, .action-row, .review-section, .tab-warn { display:none !important; }
+  .result-wrap { padding:0; }
+  .result-card { box-shadow:none; border:2px solid #FFB703; }
+  .result-inner { max-width:100%; }
+  body::before { display:none; }
+}
+@media(max-width:480px){.result-card{padding:24px 16px}.result-pct{font-size:38px}.stats-row{grid-template-columns:1fr 1fr}.result-wrap{padding:16px 12px 80px}.rb-feedback-card{padding:14px 16px}.rb-qtext{font-size:13px}}
+
+body.bee-mode .result-wrap { color:#1a1a2e !important; }
+body.bee-mode .result-card { background:#fff !important; }
+body.bee-mode .result-title { color:#1a1a2e !important; }
+body.bee-mode .result-msg  { color:#5a4a00 !important; }
+body.bee-mode .s-card { background:#f9f9f9 !important; border:1px solid #ffd84d !important; }
+body.bee-mode .s-card .val { color:#c05000 !important; }
+body.bee-mode .s-card .lbl { color:#5a4a00 !important; }
+body.bee-mode .review-toggle { background:#fff !important; border-color:#ffd84d !important; color:#1a1a2e !important; }
+body.bee-mode .rb-feedback-card { color:#1a1a2e !important; }
+body.bee-mode .rb-qtext { color:#1a1a2e !important; }
+body.bee-mode .rb-opt { background:rgba(255,255,255,.6) !important; }
+body.bee-mode .rb-opt-text { color:#1a1a2e !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="result-wrap">
+  <div class="result-inner">
+    <div class="result-card" id="printArea">
+      <span class="result-bee">🐝</span>
+      <div class="mode-tag">{{ mode }}</div>
+      <div class="result-title">Quiz Complete!</div>
+      <div class="result-pct">{{ pct }}%</div>
+      <div class="result-msg">{{ msg }}</div>
+      <div class="grade-circle grade-{{ grade }}">{{ grade }}</div>
+      {% if tab_switches > 0 %}
+      <div class="tab-warn">⚠️ {{ tab_switches }} tab switch{{ 'es' if tab_switches!=1 }} detected</div>
+      {% endif %}
+      <div class="stats-row">
+        <div class="s-card"><div class="val val-correct">{{ score }}</div><div class="lbl">Correct</div></div>
+        <div class="s-card"><div class="val val-wrong">{{ wrong }}</div><div class="lbl">Wrong</div></div>
+        <div class="s-card"><div class="val val-total">{{ total }}</div><div class="lbl">Total</div></div>
+        <div class="s-card"><div class="val val-time">{{ time_taken }}s</div><div class="lbl">Time</div></div>
+      </div>
+      <div class="action-row">
+        <a href="/mode" class="play-again-btn">🔁 Play Again</a>
+        {% if pct >= 80 %}
+        <a href="/profile" class="play-again-btn green-btn">🏅 Download Certificate → Profile</a>
+        {% endif %}
+        <button onclick="window.print()" class="dash-btn">🖨️ Print Result</button>
+        <a href="/dashboard" class="dash-btn">📊 Back to Dashboard</a>
+      </div>
+    </div>
+
+    {% if review %}
+    <div class="review-section">
+      <button class="review-toggle" onclick="toggleReview(this)">
+        📋 Show Answer Review ({{ review|length }} questions)
+      </button>
+      <div class="review-list" id="reviewList">
+        {% for r in review %}
+
+        <!-- Feedback panel style card — same as RapidBee -->
+        <div class="rb-feedback-card {{ 'rb-correct' if r.correct else 'rb-wrong' }}">
+
+          <!-- Bee + label row -->
+          <div class="rb-top-row">
+            <div class="rb-bee">{{ '🐝' if r.correct else '😔' }}</div>
+            <div class="rb-label-wrap">
+              <div class="rb-label">{{ 'CORRECT!' if r.correct else 'INCORRECT' }}</div>
+              <div class="rb-qnum">Question {{ loop.index }} of {{ review|length }}</div>
+            </div>
+            <div class="rb-result-icon">{{ '✅' if r.correct else '❌' }}</div>
+          </div>
+
+          <!-- Question text -->
+          <div class="rb-qtext">{{ r.q }}</div>
+
+          <!-- Options -->
+          {% if r.options %}
+          <div class="rb-opts">
+            {% for opt in r.options %}
+            {% set j = loop.index0 %}
+            <div class="rb-opt
+              {{ ' rb-opt-correct' if j == r.correct_ans else '' }}
+              {{ ' rb-opt-wrong'   if j == r.user_ans and not r.correct else '' }}">
+              <span class="rb-opt-letter">{{ ['A','B','C','D'][j] }}</span>
+              <span class="rb-opt-text">{{ opt }}</span>
+              <span class="rb-opt-tag">
+                {% if j == r.correct_ans %}✅ Correct{% endif %}
+                {% if j == r.user_ans and not r.correct %}❌ Your answer{% endif %}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+function toggleReview(btn){
+  const list = document.getElementById('reviewList');
+  const open = list.style.display === 'none' || !list.style.display;
+  list.style.display = open ? 'flex' : 'none';
+  list.style.flexDirection = 'column';
+  btn.textContent = open ? '📋 Hide Answer Review' : '📋 Show Answer Review ({{ review|length }} questions)';
+}
+</script>
+{% endblock %}

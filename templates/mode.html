@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Choose Mode{% endblock %}
+{% block head %}
+<style>
+.mode-wrap{max-width:560px;margin:0 auto;padding:36px 20px 60px}
+.mode-title{text-align:center;margin-bottom:28px}
+.mode-title h1{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#fff;margin-bottom:6px}
+.mode-title p{color:rgba(255,255,255,.45);font-size:14px}
+.mode-btn{display:flex;align-items:center;gap:16px;width:100%;padding:22px 24px;margin-bottom:14px;border:none;border-radius:20px;cursor:pointer;transition:.25s;text-decoration:none;position:relative;overflow:hidden}
+.mode-btn::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(227, 231, 230, 0.904),transparent);transition:.5s}
+.mode-btn:hover::after{left:100%}
+.mode-btn:hover{transform:translateY(-5px);box-shadow:0 16px 35px rgba(0,0,0,.25)}
+.mode-btn.mode-room .name { color: #34d399 !important }
+.mode-btn.mode-room .sub  { color: rgba(52,211,153,.6) !important }
+.mode-btn.mode-room .arrow { color: #34d399 !important }
+.mode-btn.mode-room {
+  background: linear-gradient(135deg,#0d1a2e,#1a2d1a);
+  border: 1.5px solid rgba(52,211,153,.4);
+}
+.mode-quiz{background:linear-gradient(135deg,#FFD84D,#FB8500)}
+.mode-rapid{background:linear-gradient(135deg,#1a1a2e,#2d2d5e);border:2px solid rgba(255,183,3,.3)}
+.mode-custom{background:linear-gradient(135deg,#0d2d0d,#1a3d1a);border:2px solid rgba(52,211,153,.35)}
+.mode-custom .name{color:#34d399 !important}
+.mode-custom .sub{color:rgba(52,211,153,.6) !important}
+.mode-custom .arrow{color:#34d399}
+.mode-btn .icon{font-size:32px;flex-shrink:0}
+.mode-btn .info{text-align:left;flex:1}
+.mode-btn .name{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#fff;display:block;margin-bottom:3px}
+.mode-quiz .name{color:#1a1a2e}
+.mode-btn .sub{font-size:13px;color:rgba(255,255,255,.5);font-weight:600}
+.mode-quiz .sub{color:rgba(26,26,46,.6)}
+.mode-btn .arrow{font-size:20px;opacity:.7;color:#fff}
+.mode-quiz .arrow{color:#1a1a2e}
+
+.section-label{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px;margin:24px 0 12px}
+
+/* Practice grid */
+.practice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
+.practice-btn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px;border-radius:16px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,183,3,.15);text-decoration:none;transition:.2s;cursor:pointer}
+.practice-btn:hover{background:rgba(255,183,3,.12);border-color:rgba(255,183,3,.4);transform:translateY(-3px)}
+.practice-btn .p-icon{font-size:22px}
+.practice-btn .p-name{font-size:13px;font-weight:700;color:rgba(255,255,255,.85);text-align:center}
+.practice-btn .p-count{font-size:11px;color:rgba(255,255,255,.35);font-weight:600}
+
+/* Exam sessions */
+.exam-card{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,183,3,.2);border-radius:16px;padding:18px 20px;margin-bottom:10px;display:flex;align-items:center;gap:14px}
+.exam-card .e-icon{font-size:28px;flex-shrink:0}
+.exam-card .e-info{flex:1}
+.exam-card .e-title{font-size:15px;font-weight:700;color:#fff;margin-bottom:3px}
+.exam-card .e-time{font-size:12px;color:rgba(255,255,255,.4)}
+.exam-card .e-btn{background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;padding:8px 18px;border-radius:30px;font-size:13px;font-weight:800;text-decoration:none;border:none;cursor:pointer;transition:.2s;white-space:nowrap}
+.exam-card .e-btn:hover{transform:translateY(-2px)}
+.no-exams{text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:14px}
+
+@media(max-width:480px){.practice-grid{grid-template-columns:repeat(2,1fr)}.mode-btn{padding:18px 16px}.mode-wrap{padding:20px 14px 80px}.mode-btn .name{font-size:16px}}
+
+body.bee-mode .mode-wrap { color:#1a1a2e !important; }
+body.bee-mode .mode-btn { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .mode-btn .name { color:#1a1a2e !important; }
+body.bee-mode .mode-btn .sub  { color:#5a4a00 !important; }
+body.bee-mode .mode-btn .arrow{ color:#FB8500 !important; }
+body.bee-mode .mode-quiz { background:linear-gradient(135deg,#fff3b0,#ffe9a0) !important; }
+body.bee-mode .mode-rapid { background:linear-gradient(135deg,#FFB703,#FB8500) !important; }
+body.bee-mode .mode-custom { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .mode-room   { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .mode-room .name { color:#1a1a2e !important; }
+body.bee-mode .mode-room .sub  { color:#5a4a00 !important; }
+body.bee-mode .mode-custom .name { color:#1a1a2e !important; }
+body.bee-mode .mode-custom .sub  { color:#5a4a00 !important; }
+body.bee-mode .mode-custom .arrow{ color:#FB8500 !important; }
+body.bee-mode .mode-rapid .name,
+body.bee-mode .mode-rapid .sub,
+body.bee-mode .mode-rapid .arrow { color:#1a1a2e !important; }
+body.bee-mode a[href="/beexam"] { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode a[href="/beexam"] .name { color:#7c3aed !important; }
+body.bee-mode a[href="/beexam"] .sub  { color:#5a3a8a !important; }
+body.bee-mode a[href="/beexam"] .arrow{ color:#a855f7 !important; }
+body.bee-mode .practice-btn { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .practice-btn .p-name  { color:#1a1a2e !important; }
+body.bee-mode .practice-btn .p-count { color:#7a5a00 !important; }
+body.bee-mode .practice-btn .p-icon  { filter:none !important; }
+body.bee-mode .section-label { color:#1a1a2e !important; font-weight:800 !important; }
+body.bee-mode .exam-card { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .e-title { color:#1a1a2e !important; }
+body.bee-mode .e-time  { color:#7a5a00 !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="mode-wrap">
+  <div class="mode-title">
+    <h1>🐝 Choose Mode</h1>
+    <p>How do you want to play today?</p>
+  </div>
+
+  <a href="/quiz" class="mode-btn mode-quiz">
+    <span class="icon">📘</span>
+    <div class="info"><span class="name">BeeWise Mode</span><span class="sub">25 questions · 3 minutes · All categories</span></div>
+    <span class="arrow">→</span>
+  </a>
+  <a href="/rapidbee" class="mode-btn mode-rapid">
+    <span class="icon">⚡</span>
+    <div class="info"><span class="name">RapidBee Mode</span><span class="sub">One at a time · Beat the clock</span></div>
+    <span class="arrow">→</span>
+  </a>
+
+  <div class="section-label">📚 Practice by Category</div>
+  <div class="practice-grid">
+    {% set icons = {
+      'Computer Science':'💻','General Knowledge':'💡','Geography':'🌍','History':'📜',
+      'Mathematics':'➗','Science':'🔭','Physics':'⚡','Chemistry':'⚗️','Biology':'🧬',
+      'Indian History':'🇮🇳','Civics':'🏛️','Economics':'💰','Indian Geography':'🗺️',
+      'English Grammar':'📝','Logical Reasoning':'🧠','Environmental Science':'🌱',
+      'Current Affairs':'📰','HTML':'🌐','CSS':'🎨','Python':'🐍','SQL':'🗄️',
+      'Flask':'🌶️','General':'💡'
+    } %}
+    {% for cat in categories %}
+    <a href="/practice?cat={{ cat|urlencode }}" class="practice-btn">
+      <span class="p-icon">{{ icons.get(cat,'📖') }}</span>
+      <span class="p-name">{{ cat }}</span>
+      <span class="p-count">{{ cat_counts.get(cat, 0) }} questions</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <a href="/customizebee" class="mode-btn mode-custom">
+    <span class="icon">🎨</span>
+    <div class="info">
+      <span class="name">CustomizeBee Mode</span>
+      <span class="sub">Upload CSV or AI topic &middot; Your questions &middot; Unranked</span>
+    </div>
+    <span class="arrow">→</span>
+  </a>
+
+  <a href="/room" class="mode-btn mode-room">
+    <span class="icon">&#127918;</span>
+    <div class="info">
+      <span class="name">Quiz Room</span>
+      <span class="sub">Teacher&#8217;s test &middot; Enter room code &middot; Shuffled for everyone</span>
+    </div>
+    <span class="arrow">&#8594;</span>
+  </a>
+
+  <a href="/beexam" class="mode-btn" style="background:linear-gradient(135deg,#1a1a2e,#2d1a4e);border:2px solid rgba(168,85,247,.35)">
+    <span class="icon">🎓</span>
+    <div class="info">
+      <span class="name" style="color:#c084fc">BeeXam Mode</span>
+      <span class="sub" style="color:rgba(192,132,252,.6)">Real past papers · NEET · JEE · SAT · GRE &amp; more</span>
+    </div>
+    <span class="arrow" style="color:#a855f7">&#8594;</span>
+  </a>
+
+  {% if exams %}
+  <div class="section-label">🎓 Active Exams</div>
+  {% for exam in exams %}
+  <div class="exam-card">
+    <span class="e-icon">📝</span>
+    <div class="e-info">
+      <div class="e-title">{{ exam.title }}</div>
+      <div class="e-time">Until {{ exam.end_time[:16].replace('T',' ') }}</div>
+    </div>
+    <a href="/quiz" class="e-btn">Start Exam</a>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Room Results: {{ room.title }}{% endblock %}
+{% block head %}
+<style>
+.rr2-wrap{max-width:800px;margin:0 auto;padding:40px 20px 100px}
+.rr2-header{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);
+  border-radius:20px;padding:24px 28px;margin-bottom:28px}
+.rr2-title{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;
+  color:#fff;margin-bottom:6px}
+.rr2-meta{font-size:13px;color:rgba(255,255,255,.4)}
+.rr2-code{font-family:monospace;font-size:22px;font-weight:800;color:#34d399;
+  letter-spacing:4px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);
+  padding:8px 18px;border-radius:10px;display:inline-block;margin-top:10px}
+.section-label{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;
+  color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 12px}
+.a-table{width:100%;border-collapse:collapse}
+.a-table th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
+  color:rgba(255,255,255,.35);padding:8px 14px;text-align:left;
+  border-bottom:1px solid rgba(255,255,255,.08);background:#1a1a2e}
+.a-table td{padding:12px 14px;font-size:14px;color:rgba(255,255,255,.8);
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.a-table tr:hover td{background:rgba(52,211,153,.05)}
+.rank-1{color:#FFD700;font-weight:800}
+.rank-2{color:#C0C0C0;font-weight:800}
+.rank-3{color:#CD7F32;font-weight:800}
+.no-results{text-align:center;padding:40px;color:rgba(255,255,255,.25)}
+.back-btn{display:inline-block;padding:10px 22px;border-radius:30px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.6);text-decoration:none;font-size:14px;font-weight:700;
+  margin-bottom:24px;transition:.2s}
+.back-btn:hover{background:rgba(255,255,255,.14)}
+body.bee-mode .rr2-header{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .rr2-title{color:#1a1a2e !important}
+body.bee-mode .rr2-meta{color:#5a4a00 !important}
+body.bee-mode .a-table th{background:#1a1a2e !important;color:#FFD84D !important}
+body.bee-mode .a-table td{color:#1a1a2e !important;border-color:#fde68a !important}
+body.bee-mode .section-label{color:#1a1a2e !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="rr2-wrap">
+  <a href="/admin?tab=rooms" class="back-btn">&larr; Back to Rooms</a>
+
+  <div class="rr2-header">
+    <div class="rr2-title">&#127918; {{ room.title }}</div>
+    <div class="rr2-meta">
+      {{ results|length }} submission{{ 's' if results|length != 1 else '' }} &middot;
+      {{ room.time_limit }}s per question &middot;
+      Created {{ room.created[:10] }}
+    </div>
+    <div class="rr2-code">{{ room.code }}</div>
+  </div>
+
+  <div class="section-label">Results — Ranked by Score</div>
+
+  {% if results %}
+  <table class="a-table">
+    <thead>
+      <tr>
+        <th>Rank</th>
+        <th>Student</th>
+        <th>Score</th>
+        <th>Percentage</th>
+        <th>Time</th>
+        <th>Submitted</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in results %}
+    <tr>
+      <td>
+        <span class="{% if loop.index==1 %}rank-1{% elif loop.index==2 %}rank-2{% elif loop.index==3 %}rank-3{% endif %}">
+          {% if loop.index==1 %}&#127941;
+          {% elif loop.index==2 %}&#129352;
+          {% elif loop.index==3 %}&#129353;
+          {% else %}{{ loop.index }}{% endif %}
+        </span>
+      </td>
+      <td><strong>{{ r.username }}</strong></td>
+      <td>{{ r.score }} / {{ r.total }}</td>
+      <td>
+        <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;
+          color:{% if r.pct >= 80 %}#10b981{% elif r.pct >= 60 %}#FFB703{% else %}#ef4444{% endif %}">
+          {{ r.pct }}%
+        </span>
+      </td>
+      <td>{{ '%d:%02d'|format(r.time_taken//60, r.time_taken%60) }}</td>
+      <td style="color:rgba(255,255,255,.35);font-size:12px">{{ r.finished[:16].replace('T',' ') }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="no-results">
+    <div style="font-size:36px;margin-bottom:12px">&#128203;</div>
+    <div>No submissions yet. Students join with code <strong style="color:#34d399">{{ room.code }}</strong></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

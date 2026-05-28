@@ -1,0 +1,533 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Chess ♟️{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+<style>
+.chess-wrap{max-width:600px;margin:0 auto;padding:20px 16px 80px}
+.chess-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--text-primary);text-align:center;margin-bottom:4px}
+.chess-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:16px}
+
+/* Difficulty */
+.diff-row{display:flex;gap:8px;justify-content:center;margin-bottom:14px;flex-wrap:wrap}
+.diff-btn{padding:8px 18px;border-radius:30px;border:1.5px solid var(--stat-border);background:var(--card-bg);color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;transition:.2s;font-family:'Nunito',sans-serif}
+.diff-btn:hover,.diff-btn.active{border-color:var(--honey);color:var(--honey);background:rgba(255,183,3,.1)}
+.diff-btn.active .elo-tag{color:var(--honey)}
+.elo-tag{font-size:10px;color:var(--text-muted);margin-left:4px}
+
+/* HUD */
+.chess-hud{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.chess-stat{background:var(--card-bg);border:1.5px solid var(--stat-border);border-radius:30px;padding:5px 14px;font-size:12px;font-weight:800;color:var(--text-primary);font-family:'Space Grotesk',sans-serif}
+.chess-stat span{color:var(--honey)}
+
+/* Board wrapper — click layer sits on top */
+#board-wrap{position:relative;width:100%;max-width:480px;margin:0 auto;user-select:none}
+#board{width:100%}
+/* Overlay canvas for dots/highlights */
+#overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+
+/* Status */
+.chess-status{text-align:center;margin:10px 0;padding:10px 16px;border-radius:14px;font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;min-height:42px;display:flex;align-items:center;justify-content:center;gap:8px;transition:.3s}
+.chess-status.thinking{background:rgba(168,85,247,.12);border:1.5px solid rgba(168,85,247,.25);color:#c084fc}
+.chess-status.your-turn{background:rgba(255,183,3,.1);border:1.5px solid rgba(255,183,3,.25);color:var(--honey)}
+.chess-status.check{background:rgba(239,68,68,.12);border:1.5px solid rgba(239,68,68,.3);color:#ef4444;animation:blink .7s infinite}
+.chess-status.win{background:rgba(34,197,94,.12);border:1.5px solid rgba(34,197,94,.3);color:#22c55e}
+.chess-status.lose{background:rgba(239,68,68,.12);border:1.5px solid rgba(239,68,68,.3);color:#ef4444}
+.chess-status.draw{background:rgba(148,163,184,.1);border:1.5px solid rgba(148,163,184,.2);color:#94a3b8}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* Controls */
+.chess-controls{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+.chess-btn{padding:9px 20px;border:none;border-radius:12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer;transition:.2s}
+.chess-btn.pri{background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e}
+.chess-btn.sec{background:var(--card-bg);border:1.5px solid var(--stat-border);color:var(--text-muted)}
+.chess-btn:hover{transform:translateY(-2px)}
+
+/* Captured */
+.captured-row{display:flex;align-items:center;gap:6px;min-height:26px;margin:5px 0;font-size:16px;flex-wrap:wrap}
+.captured-label{font-size:11px;font-weight:700;color:var(--text-muted);white-space:nowrap}
+
+/* Move history */
+.move-history{background:var(--card-bg);border:1px solid var(--stat-border);border-radius:14px;padding:12px;margin-top:12px;max-height:100px;overflow-y:auto}
+.mh-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.move-list{display:flex;flex-wrap:wrap;gap:4px}
+.mc{font-size:11px;padding:2px 7px;border-radius:6px;font-weight:600;font-family:monospace}
+.mc.w{background:rgba(255,255,255,.1);color:var(--text-primary)}
+.mc.b{background:rgba(168,85,247,.12);color:#c084fc}
+
+/* Achievement toast */
+@keyframes fadeUp{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes fadeOut{to{opacity:0}}
+
+/* ── Dark mode explicit overrides ── */
+body:not(.bee-mode) .chess-title{color:#fff}
+body:not(.bee-mode) .chess-sub{color:rgba(255,255,255,.45)}
+body:not(.bee-mode) .chess-stat{background:rgba(255,255,255,.07);border-color:rgba(255,183,3,.2);color:#fff}
+body:not(.bee-mode) .chess-stat span{color:#FFD84D}
+body:not(.bee-mode) .diff-btn{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.12);color:rgba(255,255,255,.5)}
+body:not(.bee-mode) .diff-btn:hover,body:not(.bee-mode) .diff-btn.active{background:rgba(255,183,3,.15);border-color:#FFB703;color:#FFD84D}
+body:not(.bee-mode) .elo-tag{color:rgba(255,255,255,.35)}
+body:not(.bee-mode) .diff-btn.active .elo-tag{color:#FFD84D}
+body:not(.bee-mode) .captured-label{color:rgba(255,255,255,.4)}
+body:not(.bee-mode) .captured-row{color:#fff}
+body:not(.bee-mode) .move-history{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)}
+body:not(.bee-mode) .mh-title{color:rgba(255,255,255,.35)}
+body:not(.bee-mode) .mc.w{background:rgba(255,255,255,.1);color:#fff}
+body:not(.bee-mode) .chess-btn.sec{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.12);color:rgba(255,255,255,.6)}
+/* Board coordinate letters/numbers from chessboard.js */
+body:not(.bee-mode) .square-55d63{color:#fff !important}
+body:not(.bee-mode) .notation-322f9{color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+
+/* Piece visibility — shadow helps on any background */
+.piece-417db img, img[src*="chesspieces"]{
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+}
+body.bee-mode img[src*="chesspieces"]{
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.35));
+}
+
+/* ── Bee mode overrides ── */
+body.bee-mode .chess-title{color:#1a1a2e !important}
+body.bee-mode .chess-sub{color:#7a5a00 !important}
+body.bee-mode .chess-stat{background:#fff !important;border-color:#fde68a !important;color:#1a1a2e !important}
+body.bee-mode .chess-stat span{color:#FB8500 !important}
+body.bee-mode .diff-btn{background:#fff !important;border-color:#fde68a !important;color:#7a5a00 !important}
+body.bee-mode .diff-btn:hover,body.bee-mode .diff-btn.active{background:#ffd84d !important;border-color:#FB8500 !important;color:#1a1a2e !important}
+body.bee-mode .elo-tag{color:#bba070 !important}
+body.bee-mode .diff-btn.active .elo-tag{color:#7a5a00 !important}
+body.bee-mode .captured-label{color:#7a5a00 !important}
+body.bee-mode .captured-row{color:#1a1a2e !important}
+body.bee-mode .move-history{background:#fff !important;border-color:#fde68a !important}
+body.bee-mode .mh-title{color:#7a5a00 !important}
+body.bee-mode .mc.w{background:#f0e6d0 !important;color:#1a1a2e !important}
+body.bee-mode .mc.b{background:rgba(168,85,247,.12) !important;color:#7c3aed !important}
+body.bee-mode .chess-btn.sec{background:#fff !important;border-color:#fde68a !important;color:#7a5a00 !important}
+body.bee-mode .chess-status.your-turn{color:#c96a00 !important}
+body.bee-mode .chess-status.thinking{color:#7c3aed !important}
+/* Board coordinate letters in bee mode */
+body.bee-mode .notation-322f9{color:#7a5a00 !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="chess-wrap">
+  <div class="chess-title">♟️ Chess vs Stockfish</div>
+  <div class="chess-sub">Click a piece to see moves · Click a dot to move</div>
+
+  <!-- Difficulty -->
+  <div class="diff-row">
+    <button class="diff-btn" onclick="setDiff('easy')"   id="dEasy">😊 Easy <span class="elo-tag">~800</span></button>
+    <button class="diff-btn active" onclick="setDiff('medium')" id="dMedium">🔥 Medium <span class="elo-tag">~1300</span></button>
+    <button class="diff-btn" onclick="setDiff('hard')"   id="dHard">💀 Hard <span class="elo-tag">~2000</span></button>
+    <button class="diff-btn" onclick="setDiff('expert')" id="dExpert">🤖 Expert <span class="elo-tag">MAX</span></button>
+  </div>
+
+  <!-- HUD -->
+  <div class="chess-hud">
+    <div class="chess-stat">♟️ <span id="moveCount">0</span> moves</div>
+    <div class="chess-stat">⏱ <span id="timerEl">0:00</span></div>
+    <div class="chess-stat" id="evalStat">Eval: <span id="evalVal">0.0</span></div>
+  </div>
+
+  <!-- Captured -->
+  <div class="captured-row"><span class="captured-label">Engine took:</span><span id="capEngine"></span></div>
+  <div id="board-wrap">
+    <div id="board"></div>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div class="captured-row"><span class="captured-label">You took:</span><span id="capPlayer"></span></div>
+
+  <!-- Status -->
+  <div class="chess-status your-turn" id="statusBar">♟️ Click a piece to start</div>
+
+  <!-- Controls -->
+  <div class="chess-controls">
+    <button class="chess-btn pri" onclick="newGame()">🔄 New Game</button>
+    <button class="chess-btn sec" onclick="undoMove()">↩ Undo</button>
+    <button class="chess-btn sec" onclick="flipBoard()">🔃 Flip</button>
+    <a href="/games" class="chess-btn sec" style="text-decoration:none">← Games</a>
+  </div>
+
+  <!-- Move history -->
+  <div class="move-history">
+    <div class="mh-title">Move History</div>
+    <div class="move-list" id="moveList"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<script>
+// ── Achievement helper ────────────────────────────────────────────
+async function awardAch(ids){
+  if(!Array.isArray(ids)) ids=[ids];
+  try{
+    const r=await fetch('/games/award',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({achievements:ids})});
+    const d=await r.json();
+    if(d.awarded&&d.awarded.length) d.awarded.forEach(a=>toast(a.icon+' '+a.name+' unlocked!'));
+  }catch(e){}
+}
+function toast(msg){
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;padding:10px 22px;border-radius:30px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;z-index:9999;animation:fadeUp .4s ease;white-space:nowrap';
+  el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>{el.style.animation='fadeOut .4s ease forwards';setTimeout(()=>el.remove(),400);},2800);
+}
+
+// ── Config ────────────────────────────────────────────────────────
+const DIFF = {
+  easy:   {elo:800,  skill:1,  limitStrength:true,  movetime:500,  depth:null},
+  medium: {elo:1300, skill:10, limitStrength:true,  movetime:1000, depth:null},
+  hard:   {elo:2000, skill:18, limitStrength:true,  movetime:2000, depth:null},
+  expert: {elo:null, skill:20, limitStrength:false, movetime:4000, depth:22}
+};
+const PIECE_SYM={wP:'♙',wN:'♘',wB:'♗',wR:'♖',wQ:'♕',bP:'♟',bN:'♞',bB:'♝',bR:'♜',bQ:'♛'};
+
+// ── State ─────────────────────────────────────────────────────────
+let game, board, stockfish;
+let diff='medium', moveCount=0, undoCount=0, seconds=0, timer=null;
+let playerColor='w', thinking=false, boardFlipped=false;
+let selectedSq=null, legalMoves=[];
+let capPlayer=[], capEngine=[];
+
+// ── Stockfish init ────────────────────────────────────────────────
+function initEngine(){
+  try{
+    stockfish = new Worker('/static/stockfish-18-lite-single.js');
+    stockfish.onmessage=function(e){
+      const msg=e.data;
+      if(msg.startsWith('bestmove')){
+        const mv=msg.split(' ')[1];
+        if(mv&&mv!=='(none)') makeEngineMove(mv);
+        else endGame();
+      }
+      if(msg.includes('score cp')){
+        const m=msg.match(/score cp (-?\d+)/);
+        if(m) document.getElementById('evalVal').textContent=((parseInt(m[1])/100)>0?'+':'')+(parseInt(m[1])/100).toFixed(1);
+      }
+    };
+    stockfish.postMessage('uci');
+    stockfish.postMessage('isready');
+  }catch(e){ stockfish=null; console.warn('Stockfish failed:', e); }
+}
+
+function sendToEngine(){
+  if(!stockfish){ fallback(); return; }
+  const cfg=DIFF[diff];
+  stockfish.postMessage('ucinewgame');
+  if(cfg.limitStrength){
+    stockfish.postMessage('setoption name UCI_LimitStrength value true');
+    stockfish.postMessage('setoption name UCI_Elo value '+cfg.elo);
+    stockfish.postMessage('setoption name Skill Level value '+cfg.skill);
+    stockfish.postMessage('position fen '+game.fen());
+    stockfish.postMessage('go movetime '+cfg.movetime);
+  } else {
+    stockfish.postMessage('setoption name UCI_LimitStrength value false');
+    stockfish.postMessage('setoption name Skill Level value 20');
+    stockfish.postMessage('position fen '+game.fen());
+    stockfish.postMessage('go depth 22 movetime 4000');
+  }
+}
+
+// ── New game ──────────────────────────────────────────────────────
+function newGame(){
+  game=new Chess();
+  moveCount=0; undoCount=0; seconds=0; thinking=false;
+  selectedSq=null; legalMoves=[];
+  capPlayer=[]; capEngine=[];
+  clearInterval(timer);
+  timer=setInterval(()=>{ seconds++; document.getElementById('timerEl').textContent=fmt(seconds); },1000);
+  document.getElementById('moveCount').textContent='0';
+  document.getElementById('moveList').innerHTML='';
+  document.getElementById('capPlayer').textContent='';
+  document.getElementById('capEngine').textContent='';
+  document.getElementById('evalVal').textContent='0.0';
+  clearOverlay();
+  board.position('start');
+  status('your-turn','♟️ Your turn — click a piece');
+  awardAch(['first_chess']);
+  if(diff==='expert') awardAch(['chess_expert']);
+}
+
+// ── Board init ────────────────────────────────────────────────────
+function initBoard(){
+  board=Chessboard('board',{
+    position:'start',
+    draggable:false,  // click only
+    pieceTheme:'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+  });
+  $(window).resize(()=>{ board.resize(); resizeOverlay(); });
+  // Click handler on the board container
+  document.getElementById('board').addEventListener('click', onBoardClick);
+}
+
+function resizeOverlay(){
+  const wrap=document.getElementById('board-wrap');
+  const cv=document.getElementById('overlay');
+  cv.width=wrap.offsetWidth;
+  cv.height=wrap.offsetHeight;
+}
+
+// ── Click to move ─────────────────────────────────────────────────
+function onBoardClick(e){
+  if(thinking||game.game_over()) return;
+  if(game.turn()!==playerColor) return;
+
+  const sq = getSquareFromClick(e);
+  if(!sq) return;
+
+  // If a square is already selected
+  if(selectedSq){
+    // Try to make the move
+    const move = legalMoves.find(m=>m.to===sq);
+    if(move){
+      executePlayerMove(selectedSq, sq);
+      selectedSq=null; legalMoves=[];
+      clearOverlay();
+      return;
+    }
+    // Clicked own piece — reselect
+    const piece=game.get(sq);
+    if(piece&&piece.color===playerColor){
+      selectedSq=sq;
+      legalMoves=game.moves({square:sq,verbose:true});
+      drawOverlay(sq, legalMoves);
+      return;
+    }
+    // Clicked elsewhere — deselect
+    selectedSq=null; legalMoves=[];
+    clearOverlay();
+    return;
+  }
+
+  // No selection yet — select a piece
+  const piece=game.get(sq);
+  if(!piece||piece.color!==playerColor) return;
+  selectedSq=sq;
+  legalMoves=game.moves({square:sq,verbose:true});
+  if(legalMoves.length===0){ selectedSq=null; return; }
+  drawOverlay(sq, legalMoves);
+}
+
+function getSquareFromClick(e){
+  const wrap=document.getElementById('board-wrap');
+  const rect=wrap.getBoundingClientRect();
+  const x=e.clientX-rect.left;
+  const y=e.clientY-rect.top;
+  const sqSize=wrap.offsetWidth/8;
+  let col=Math.floor(x/sqSize);
+  let row=Math.floor(y/sqSize);
+  if(col<0||col>7||row<0||row>7) return null;
+  if(boardFlipped){ col=7-col; row=7-row; }
+  const files='abcdefgh';
+  return files[col]+(8-row);
+}
+
+// ── Overlay drawing ───────────────────────────────────────────────
+function drawOverlay(from, moves){
+  const cv=document.getElementById('overlay');
+  resizeOverlay();
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const sqSize=cv.width/8;
+  const files='abcdefgh';
+
+  // Highlight selected square
+  const fc=files.indexOf(from[0]);
+  const fr=8-parseInt(from[1]);
+  const dc=boardFlipped?7-fc:fc;
+  const dr=boardFlipped?7-fr:fr;
+  ctx.fillStyle='rgba(255,183,3,0.35)';
+  ctx.fillRect(dc*sqSize, dr*sqSize, sqSize, sqSize);
+
+  // Draw dots/rings on legal move squares
+  moves.forEach(m=>{
+    const tc=files.indexOf(m.to[0]);
+    const tr=8-parseInt(m.to[1]);
+    const dtc=boardFlipped?7-tc:tc;
+    const dtr=boardFlipped?7-tr:tr;
+    const cx=dtc*sqSize+sqSize/2;
+    const cy=dtr*sqSize+sqSize/2;
+    const hasPiece=game.get(m.to);
+    if(hasPiece){
+      // Ring around capture square
+      ctx.beginPath();
+      ctx.arc(cx,cy,sqSize*0.46,0,Math.PI*2);
+      ctx.strokeStyle='rgba(0,0,0,0.35)';
+      ctx.lineWidth=sqSize*0.08;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx,cy,sqSize*0.46,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,120,0,0.7)';
+      ctx.lineWidth=sqSize*0.06;
+      ctx.stroke();
+    } else {
+      // Filled dot for empty squares
+      ctx.beginPath();
+      ctx.arc(cx,cy,sqSize*0.16,0,Math.PI*2);
+      ctx.fillStyle='rgba(0,0,0,0.28)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx,cy,sqSize*0.14,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,183,3,0.65)';
+      ctx.fill();
+    }
+  });
+}
+
+function clearOverlay(){
+  const cv=document.getElementById('overlay');
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+}
+
+// ── Move execution ────────────────────────────────────────────────
+function executePlayerMove(from, to){
+  // Handle pawn promotion
+  const rank = to[1];
+  const piece = game.get(from);
+  let promo='q';
+  if(piece&&piece.type==='p'&&((piece.color==='w'&&rank==='8')||(piece.color==='b'&&rank==='1'))){
+    promo='q'; // auto-queen for simplicity
+  }
+  const move=game.move({from,to,promotion:promo});
+  if(!move) return;
+  if(move.captured) capPlayer.push(PIECE_SYM[(game.turn()==='w'?'b':'w')+move.captured.toUpperCase()]||'•');
+  updateCaptures();
+  addMoveChip(move.san,'w');
+  moveCount++;
+  document.getElementById('moveCount').textContent=moveCount;
+  board.position(game.fen());
+  checkGameOver();
+  if(!game.game_over()){
+    status('thinking','🤖 Stockfish is thinking...');
+    thinking=true;
+    setTimeout(sendToEngine, 100);
+  }
+}
+
+function makeEngineMove(uci){
+  thinking=false;
+  const move=game.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});
+  if(!move){ endGame(); return; }
+  if(move.captured) capEngine.push(PIECE_SYM['w'+move.captured.toUpperCase()]||'•');
+  updateCaptures();
+  addMoveChip(move.san,'b');
+  moveCount++;
+  document.getElementById('moveCount').textContent=moveCount;
+  board.position(game.fen());
+  checkGameOver();
+  if(!game.game_over()){
+    if(game.in_check()) status('check','⚠️ Check! Your turn');
+    else status('your-turn','♟️ Your turn');
+  }
+}
+
+// Fallback random/capture engine when Stockfish unavailable
+function fallback(){
+  thinking=false;
+  const moves=game.moves({verbose:true});
+  if(!moves.length){ endGame(); return; }
+  const caps=moves.filter(m=>m.captured);
+  const pool=caps.length&&diff!=='easy'?caps:moves;
+  const move=game.move(pool[Math.floor(Math.random()*pool.length)]);
+  if(!move){ endGame(); return; }
+  if(move.captured) capEngine.push(PIECE_SYM['w'+move.captured.toUpperCase()]||'•');
+  updateCaptures();
+  addMoveChip(move.san,'b');
+  moveCount++; document.getElementById('moveCount').textContent=moveCount;
+  board.position(game.fen());
+  checkGameOver();
+  if(!game.game_over()){
+    if(game.in_check()) status('check','⚠️ Check! Your turn');
+    else status('your-turn','♟️ Your turn');
+  }
+}
+
+// ── Game over ─────────────────────────────────────────────────────
+function checkGameOver(){
+  if(!game.game_over()) return;
+  endGame();
+}
+
+function endGame(){
+  clearInterval(timer);
+  if(game.in_checkmate()){
+    const winner=game.turn()==='b'?'White':'Black';
+    const isPlayer=winner===(playerColor==='w'?'White':'Black');
+    if(isPlayer){
+      status('win','🎉 You win by Checkmate!');
+      const achs=['chess_win'];
+      if(diff==='medium'||diff==='hard'||diff==='expert') achs.push('chess_win_medium');
+      if(diff==='hard'||diff==='expert') achs.push('chess_win_hard');
+      if(diff==='expert') achs.push('secret_chess_expert_win');
+      if(moveCount>=20) achs.push('chess_20moves');
+      awardAch(achs);
+    } else { status('lose','😔 Stockfish wins! Better luck next time'); }
+  } else if(game.in_stalemate()){ status('draw','🤝 Stalemate — Draw'); awardAch(['secret_chess_draw']); }
+  else if(game.in_threefold_repetition()){ status('draw','🤝 Draw by Repetition'); awardAch(['secret_chess_draw']); }
+  else if(game.insufficient_material()){ status('draw','🤝 Draw — Insufficient Material'); awardAch(['secret_chess_draw']); }
+  else { status('draw','🤝 Draw'); }
+}
+
+// ── Undo ──────────────────────────────────────────────────────────
+function undoMove(){
+  if(thinking) return;
+  game.undo(); game.undo(); // undo engine + player
+  board.position(game.fen());
+  clearOverlay(); selectedSq=null; legalMoves=[];
+  const chips=document.querySelectorAll('.mc');
+  if(chips.length>=2){ chips[chips.length-1].remove(); chips[chips.length-2].remove(); }
+  moveCount=Math.max(0,moveCount-2);
+  document.getElementById('moveCount').textContent=moveCount;
+  undoCount++;
+  if(undoCount>=5) awardAch(['secret_chess_undo']);
+  status('your-turn','♟️ Your turn');
+}
+
+// ── Flip board ────────────────────────────────────────────────────
+function flipBoard(){
+  boardFlipped=!boardFlipped;
+  board.flip();
+  playerColor=playerColor==='w'?'b':'w';
+  clearOverlay(); selectedSq=null; legalMoves=[];
+}
+
+// ── Difficulty ────────────────────────────────────────────────────
+function setDiff(d){
+  diff=d;
+  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('d'+d.charAt(0).toUpperCase()+d.slice(1)).classList.add('active');
+  newGame();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function addMoveChip(san,color){
+  const el=document.createElement('span');
+  el.className='mc '+color; el.textContent=san;
+  document.getElementById('moveList').appendChild(el);
+  document.getElementById('moveList').parentElement.scrollTop=9999;
+}
+
+function updateCaptures(){
+  document.getElementById('capPlayer').textContent=capPlayer.join(' ');
+  document.getElementById('capEngine').textContent=capEngine.join(' ');
+}
+
+function status(cls,msg){
+  const el=document.getElementById('statusBar');
+  el.className='chess-status '+cls;
+  el.textContent=msg;
+}
+
+function fmt(s){ return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0'); }
+
+// ── Boot ──────────────────────────────────────────────────────────
+$(document).ready(function(){
+  initEngine();
+  initBoard();
+  resizeOverlay();
+  newGame();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – BeeXam{% endblock %}
+{% block head %}
+<style>
+.bx-wrap{max-width:640px;margin:0 auto;padding:28px 16px 80px}
+.bx-title{text-align:center;margin-bottom:28px}
+.bx-title h1{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;color:#fff;margin-bottom:6px}
+.bx-title p{font-size:14px;color:rgba(255,255,255,.4)}
+.section-label{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.8px;margin:0 0 12px;display:flex;align-items:center;gap:6px}
+
+/* Exam grid — SAME style as practice cards */
+.bx-exam-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px}
+.bx-exam-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px;border-radius:16px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,183,3,.15);cursor:pointer;transition:.2s;text-align:center;position:relative}
+.bx-exam-card:hover{background:rgba(255,183,3,.12);border-color:rgba(255,183,3,.4);transform:translateY(-3px)}
+.bx-exam-card.active{background:rgba(255,183,3,.18);border-color:rgba(255,183,3,.6);box-shadow:0 0 0 3px rgba(255,183,3,.15)}
+.bx-exam-icon{font-size:22px}
+.bx-exam-name{font-size:13px;font-weight:700;color:rgba(255,255,255,.85)}
+.bx-exam-count{font-size:11px;color:rgba(255,255,255,.35);font-weight:600}
+
+/* Papers dropdown panel */
+.bx-papers-section{display:none;background:rgba(255,255,255,.04);border:1.5px solid rgba(255,183,3,.2);border-radius:16px;padding:18px;margin-top:4px;margin-bottom:16px}
+.bx-papers-section.open{display:block}
+.bx-papers-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.bx-papers-header h3{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;color:#fff;display:flex;align-items:center;gap:8px}
+.bx-close-btn{background:none;border:none;color:rgba(255,255,255,.3);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;transition:.2s}
+.bx-close-btn:hover{background:rgba(255,255,255,.08);color:#fff}
+
+/* Paper rows */
+.bx-paper-row{display:flex;align-items:center;gap:12px;padding:13px 15px;background:rgba(255,255,255,.04);border:1px solid rgba(255,183,3,.1);border-radius:13px;margin-bottom:8px;transition:.2s}
+.bx-paper-row:hover{background:rgba(255,183,3,.08);border-color:rgba(255,183,3,.3)}
+.bx-paper-info{flex:1}
+.bx-paper-title{font-size:14px;font-weight:800;color:#fff;margin-bottom:3px}
+.bx-paper-meta{font-size:11px;color:rgba(255,255,255,.4);display:flex;gap:10px;flex-wrap:wrap}
+.bx-tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(255,183,3,.15);color:#FFD84D;border:1px solid rgba(255,183,3,.25)}
+.bx-start-btn{background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;border:none;padding:9px 18px;border-radius:30px;font-size:12px;font-weight:800;cursor:pointer;transition:.2s;white-space:nowrap;font-family:'Nunito',sans-serif}
+.bx-start-btn:hover{transform:translateY(-2px);box-shadow:0 5px 16px rgba(255,183,3,.35)}
+.bx-no-papers{text-align:center;padding:18px;color:rgba(255,255,255,.25);font-size:13px}
+
+/* Time modal */
+.bx-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.bx-modal-bg.open{display:flex}
+.bx-modal{background:#1a1a2e;border:1.5px solid rgba(255,183,3,.35);border-radius:22px;padding:28px;width:100%;max-width:380px}
+.bx-modal h3{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;color:#fff;margin-bottom:5px}
+.bx-modal-sub{font-size:13px;color:rgba(255,255,255,.4);margin-bottom:20px}
+.bx-time-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.bx-time-opt{padding:14px;border:1.5px solid rgba(255,183,3,.2);border-radius:14px;background:rgba(255,183,3,.05);cursor:pointer;text-align:center;transition:.2s;position:relative}
+.bx-time-opt:hover,.bx-time-opt.selected{border-color:#FFD84D;background:rgba(255,183,3,.15)}
+.bx-time-opt .t-val{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:800;color:#fff}
+.bx-time-opt .t-lbl{font-size:10px;color:rgba(255,255,255,.4);font-weight:700;margin-top:2px}
+.bx-time-opt.official-time{border-color:rgba(255,183,3,.5)}
+.bx-time-opt.official-time::after{content:'Official';position:absolute;top:-8px;right:8px;background:#FFD84D;color:#1a1a2e;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px}
+.bx-modal-btns{display:flex;gap:10px}
+.bx-modal-btns button{flex:1;padding:13px;border-radius:14px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;border:none;transition:.2s}
+.bx-confirm{background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e}
+.bx-cancel{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
+.bx-confirm:hover{transform:translateY(-2px)}
+
+/* bee-mode */
+body.bee-mode .bx-title h1{color:#1a1a2e !important}
+body.bee-mode .bx-exam-card{background:#fff !important;border-color:#fde68a !important}
+body.bee-mode .bx-exam-card:hover,.bx-exam-card.active{background:#fff3b0 !important;border-color:#ffd84d !important}
+body.bee-mode .bx-exam-name{color:#1a1a2e !important}
+body.bee-mode .bx-exam-count{color:#7a5a00 !important}
+body.bee-mode .bx-papers-section{background:#fff !important;border-color:#fde68a !important}
+body.bee-mode .bx-papers-header h3{color:#1a1a2e !important}
+body.bee-mode .bx-paper-row{background:#fffbeb !important;border-color:#fde68a !important}
+body.bee-mode .bx-paper-title{color:#1a1a2e !important}
+body.bee-mode .bx-paper-meta{color:#7a5a00 !important}
+body.bee-mode .bx-modal{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .bx-modal h3{color:#1a1a2e !important}
+body.bee-mode .bx-time-opt .t-val{color:#1a1a2e !important}
+
+@media(max-width:480px){.bx-exam-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="bx-wrap">
+  <div class="bx-title">
+    <h1>🎓 BeeXam</h1>
+    <p>Real past papers. Pick your exam, set your time, go.</p>
+  </div>
+
+  {% set exam_icons = {'NEET':'🩺','JEE Main':'⚗️','JEE Advanced':'🔬','SAT':'📐','ACT':'📏','GRE':'🎓','GMAT':'💼','UPSC':'🏛️','SSC':'📋','Bank PO':'🏦','GATE':'💻','USMLE':'🏥','A-Levels':'📚'} %}
+
+  {% if exam_types %}
+  <div class="section-label">📚 Choose Your Exam</div>
+
+  <div class="bx-exam-grid">
+    {% for exam in exam_types %}
+    <div class="bx-exam-card" id="card-{{ loop.index }}"
+         onclick="toggleExam('{{ exam.name|replace("'","\\'") }}', {{ loop.index }})">
+      <div class="bx-exam-icon">{{ exam_icons.get(exam.name, '📝') }}</div>
+      <div class="bx-exam-name">{{ exam.name }}</div>
+      <div class="bx-exam-count">~{{ exam.count }} paper{{ 's' if exam.count != 1 }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Papers panel per exam — drops open below grid when card clicked -->
+  {% for exam in exam_types %}
+  {% set pid = exam.name|replace(' ','_')|replace('/','_')|replace("'","_") %}
+  <div class="bx-papers-section" id="panel-{{ pid }}">
+    <div class="bx-papers-header">
+      <h3>{{ exam_icons.get(exam.name,'📝') }} {{ exam.name }}</h3>
+      <button class="bx-close-btn" onclick="closePanel('{{ pid }}')">✕</button>
+    </div>
+    {% set ns = namespace(found=false) %}
+    {% for p in papers %}
+      {% if p.exam_name == exam.name %}
+        {% set ns.found = true %}
+        <div class="bx-paper-row">
+          <div class="bx-paper-info">
+            <div class="bx-paper-title">
+              {{ p.year }}{% if p.subject %} — <span class="bx-tag">{{ p.subject }}</span>{% endif %}
+            </div>
+            <div class="bx-paper-meta">
+              <span>❓ {{ p.question_count }} questions</span>
+              <span>⏱ {{ (p.time_limit//60) }}h{% if p.time_limit%60 %} {{ p.time_limit%60 }}m{% endif %}</span>
+              {% if p.cutoff %}<span>🎯 Cutoff: {{ p.cutoff }}</span>{% endif %}
+            </div>
+          </div>
+          <button class="bx-start-btn"
+                  onclick="openTimePicker({{ p.id }}, {{ p.time_limit }}, '{{ p.exam_name|e }} {{ p.year }}')">
+            Start →
+          </button>
+        </div>
+      {% endif %}
+    {% endfor %}
+    {% if not ns.found %}
+      <div class="bx-no-papers">No papers uploaded yet for this exam.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div style="text-align:center;padding:50px 20px;color:rgba(255,255,255,.3)">
+    <div style="font-size:44px;margin-bottom:12px">📭</div>
+    <div style="font-size:15px;font-weight:700">No exam papers yet</div>
+    <div style="font-size:13px;margin-top:6px">Ask your admin to add past papers!</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Time picker modal -->
+<div class="bx-modal-bg" id="timeModal">
+  <div class="bx-modal">
+    <h3>⏱ Set Your Time</h3>
+    <div class="bx-modal-sub" id="modalSub"></div>
+    <div class="bx-time-grid" id="timeOpts"></div>
+    <div class="bx-modal-btns">
+      <button class="bx-cancel" onclick="closeModal()">Cancel</button>
+      <button class="bx-confirm" id="startBtn">Start Exam →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let selPaper=null, selTime=null;
+
+function toggleExam(name, idx) {
+  const pid   = name.replace(/[' \/]/g,'_');
+  const panel = document.getElementById('panel-'+pid);
+  const card  = document.getElementById('card-'+idx);
+  const open  = panel && panel.classList.contains('open');
+  document.querySelectorAll('.bx-papers-section').forEach(p=>p.classList.remove('open'));
+  document.querySelectorAll('.bx-exam-card').forEach(c=>c.classList.remove('active'));
+  if(!open && panel){
+    panel.classList.add('open');
+    card.classList.add('active');
+    panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+}
+
+function closePanel(pid) {
+  const p = document.getElementById('panel-'+pid);
+  if(p) p.classList.remove('open');
+  document.querySelectorAll('.bx-exam-card').forEach(c=>c.classList.remove('active'));
+}
+
+function openTimePicker(id, officialTime, label) {
+  selPaper=id; selTime=officialTime;
+  document.getElementById('modalSub').textContent = label;
+  const mins = Math.round(officialTime/60);
+  const opts = [
+    {l:'15 min', v:900},
+    {l:'30 min', v:1800},
+    {l:'1 hour',  v:3600},
+    {l:mins+' min', v:officialTime, off:true}
+  ];
+  const seen=new Set();
+  const uniq=opts.filter(o=>{ if(seen.has(o.v))return false; seen.add(o.v); return true; });
+  const c=document.getElementById('timeOpts');
+  c.innerHTML='';
+  uniq.forEach(o=>{
+    const d=document.createElement('div');
+    d.className='bx-time-opt'+(o.off?' official-time':'');
+    d.innerHTML=`<div class="t-val">${o.l}</div><div class="t-lbl">${o.off?'Official':''}</div>`;
+    d.onclick=()=>{ c.querySelectorAll('.bx-time-opt').forEach(e=>e.classList.remove('selected')); d.classList.add('selected'); selTime=o.v; };
+    if(o.off){ d.classList.add('selected'); selTime=o.v; }
+    c.appendChild(d);
+  });
+  document.getElementById('timeModal').classList.add('open');
+}
+
+function closeModal(){ document.getElementById('timeModal').classList.remove('open'); }
+document.getElementById('startBtn').onclick = function(){
+  if(selPaper && selTime) window.location.href=`/beexam/start/${selPaper}?time=${selTime}`;
+};
+</script>
+{% endblock %}

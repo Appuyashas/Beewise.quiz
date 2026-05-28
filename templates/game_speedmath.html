@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Speed Math ⚡{% endblock %}
+{% block head %}
+<style>
+.sm-wrap{max-width:480px;margin:0 auto;padding:24px 16px 80px}
+.sm-header{text-align:center;margin-bottom:24px}
+.sm-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:#fff;margin-bottom:4px}
+.sm-subtitle{font-size:13px;color:rgba(255,255,255,.4)}
+
+/* Start screen */
+.sm-start{text-align:center;padding:20px 0}
+.sm-start-icon{font-size:72px;margin-bottom:16px;display:block}
+.sm-diff{display:flex;gap:10px;justify-content:center;margin:20px 0}
+.sm-diff-btn{padding:10px 22px;border-radius:30px;border:1.5px solid rgba(74,222,128,.3);background:rgba(74,222,128,.07);color:rgba(255,255,255,.5);font-size:14px;font-weight:700;cursor:pointer;transition:.2s;font-family:'Nunito',sans-serif}
+.sm-diff-btn:hover,.sm-diff-btn.active{background:rgba(74,222,128,.2);border-color:#4ade80;color:#4ade80}
+.sm-start-btn{background:linear-gradient(135deg,#4ade80,#16a34a);color:#1a1a2e;border:none;padding:16px 40px;border-radius:30px;font-size:17px;font-weight:800;cursor:pointer;transition:.2s;font-family:'Nunito',sans-serif;margin-top:10px}
+.sm-start-btn:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(74,222,128,.4)}
+
+/* Game screen */
+.sm-game{display:none}
+.sm-hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.sm-hud-stat{background:rgba(74,222,128,.1);border:1.5px solid rgba(74,222,128,.25);border-radius:30px;padding:6px 16px;font-size:13px;font-weight:800;color:#4ade80;font-family:'Space Grotesk',sans-serif}
+.sm-hud-stat span{color:#fff}
+.sm-timer-bar{height:8px;background:rgba(255,255,255,.08);border-radius:30px;margin-bottom:20px;overflow:hidden}
+.sm-timer-fill{height:100%;background:linear-gradient(90deg,#4ade80,#86efac);border-radius:30px;transition:width .1s linear}
+.sm-timer-fill.danger{background:linear-gradient(90deg,#f87171,#fca5a5)}
+.sm-question-box{background:rgba(255,255,255,.04);border:1.5px solid rgba(74,222,128,.2);border-radius:22px;padding:28px;text-align:center;margin-bottom:18px}
+.sm-equation{font-family:'Space Grotesk',sans-serif;font-size:42px;font-weight:800;color:#fff;margin-bottom:6px}
+.sm-qnum{font-size:12px;color:rgba(255,255,255,.3);font-weight:700}
+.sm-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.sm-opt{padding:16px;border-radius:16px;border:1.5px solid rgba(74,222,128,.2);background:rgba(74,222,128,.05);font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;color:#fff;cursor:pointer;transition:.2s;text-align:center}
+.sm-opt:hover{background:rgba(74,222,128,.15);border-color:#4ade80;transform:scale(1.03)}
+.sm-opt.correct{background:rgba(74,222,128,.25) !important;border-color:#4ade80 !important;animation:smPop .3s ease}
+.sm-opt.wrong{background:rgba(248,113,113,.2) !important;border-color:#f87171 !important}
+@keyframes smPop{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+.sm-streak{text-align:center;font-size:13px;color:rgba(255,255,255,.4);font-weight:700}
+.sm-streak span{color:#fbbf24;font-size:16px}
+
+/* Result */
+.sm-result{display:none;text-align:center;padding:20px 0}
+.sm-result-score{font-family:'Space Grotesk',sans-serif;font-size:56px;font-weight:800;color:#4ade80;margin:12px 0}
+.sm-result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+.sm-result-stat{background:rgba(255,255,255,.05);border-radius:14px;padding:14px}
+.sm-result-stat .v{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;color:#fff}
+.sm-result-stat .l{font-size:10px;color:rgba(255,255,255,.3);font-weight:700;text-transform:uppercase;margin-top:3px}
+.sm-btn{width:100%;padding:14px;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:.2s;margin-bottom:8px}
+.sm-btn.pri{background:linear-gradient(135deg,#4ade80,#16a34a);color:#1a1a2e}
+.sm-btn.sec{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
+.sm-btn:hover{transform:translateY(-2px)}
+
+body.bee-mode .sm-title{color:#1a1a2e !important}
+body.bee-mode .sm-hud-stat{background:#dcfce7 !important;border-color:#4ade80 !important;color:#166534 !important}
+body.bee-mode .sm-hud-stat span{color:#1a1a2e !important}
+body.bee-mode .sm-question-box{background:#fff !important;border-color:#4ade80 !important}
+body.bee-mode .sm-equation{color:#1a1a2e !important}
+body.bee-mode .sm-opt{background:#fff !important;border-color:#86efac !important;color:#1a1a2e !important}
+body.bee-mode .sm-opt:hover{background:#dcfce7 !important;border-color:#4ade80 !important}
+body.bee-mode .sm-result-stat{background:#f0fdf4 !important}
+body.bee-mode .sm-result-stat .v{color:#1a1a2e !important}
+body.bee-mode .sm-diff-btn{background:#fff !important;color:#166534 !important;border-color:#86efac !important}
+body.bee-mode .sm-diff-btn.active{background:#4ade80 !important;color:#1a1a2e !important;border-color:#16a34a !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="sm-wrap">
+  <div class="sm-header">
+    <div class="sm-title">⚡ Speed Math</div>
+    <div class="sm-subtitle">Rapid fire equations — how long can you streak?</div>
+  </div>
+
+  <!-- Start -->
+  <div class="sm-start" id="startScreen">
+    <span class="sm-start-icon">🔢</span>
+    <p style="color:rgba(255,255,255,.5);font-size:14px;margin-bottom:4px">Answer as many as you can!</p>
+    <p style="color:rgba(255,255,255,.3);font-size:12px">10 seconds per question. Streak = bonus points.</p>
+    <div class="sm-diff">
+      <button class="sm-diff-btn active" onclick="setDiff('easy')" id="dEasy">😊 Easy</button>
+      <button class="sm-diff-btn" onclick="setDiff('medium')" id="dMedium">🔥 Medium</button>
+      <button class="sm-diff-btn" onclick="setDiff('hard')" id="dHard">💀 Hard</button>
+    </div>
+    <button class="sm-start-btn" onclick="startGame()">Start ⚡</button>
+  </div>
+
+  <!-- Game -->
+  <div class="sm-game" id="gameScreen">
+    <div class="sm-hud">
+      <div class="sm-hud-stat">✅ <span id="scoreEl">0</span></div>
+      <div class="sm-hud-stat">Q<span id="qnumEl">1</span></div>
+      <div class="sm-hud-stat">🔥 <span id="streakEl">0</span></div>
+    </div>
+    <div class="sm-timer-bar"><div class="sm-timer-fill" id="timerFill" style="width:100%"></div></div>
+    <div class="sm-question-box">
+      <div class="sm-equation" id="equation">?</div>
+      <div class="sm-qnum" id="qnum">Question 1 of 10</div>
+    </div>
+    <div class="sm-options" id="options"></div>
+    <div class="sm-streak">Streak: <span id="streakDisp">0</span> 🔥</div>
+  </div>
+
+  <!-- Result -->
+  <div class="sm-result" id="resultScreen">
+    <div style="font-size:48px">🏆</div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:rgba(255,255,255,.5);margin-top:8px">Final Score</div>
+    <div class="sm-result-score" id="finalScore">0</div>
+    <div class="sm-result-grid">
+      <div class="sm-result-stat"><div class="v" id="rCorrect">0</div><div class="l">Correct</div></div>
+      <div class="sm-result-stat"><div class="v" id="rWrong">0</div><div class="l">Wrong</div></div>
+      <div class="sm-result-stat"><div class="v" id="rBestStreak">0</div><div class="l">Best Streak</div></div>
+    </div>
+    <button class="sm-btn pri" onclick="startGame()">▶ Play Again</button>
+    <button class="sm-btn sec" onclick="goStart()">← Change Difficulty</button>
+    <button class="sm-btn sec" onclick="window.location='/games'">🕹️ All Games</button>
+  </div>
+</div>
+
+<script>
+let diff='easy', score=0, qnum=0, streak=0, bestStreak=0, correct=0, wrong=0;
+let qtimer=null, totalQ=10, locked=false;
+const TOTAL = 10, Q_TIME = 10;
+
+function setDiff(d){
+  diff=d;
+  document.querySelectorAll('.sm-diff-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('d'+d.charAt(0).toUpperCase()+d.slice(1)).classList.add('active');
+}
+
+function genQuestion(){
+  const ops=['+','-','×'];
+  let op, a, b, ans;
+  if(diff==='easy'){
+    op=ops[Math.floor(Math.random()*2)]; a=Math.floor(Math.random()*12)+1; b=Math.floor(Math.random()*12)+1;
+  } else if(diff==='medium'){
+    op=ops[Math.floor(Math.random()*3)]; a=Math.floor(Math.random()*20)+5; b=Math.floor(Math.random()*15)+2;
+  } else {
+    op=ops[Math.floor(Math.random()*3)]; a=Math.floor(Math.random()*50)+10; b=Math.floor(Math.random()*30)+5;
+  }
+  if(op==='+') ans=a+b;
+  else if(op==='-'){ if(a<b)[a,b]=[b,a]; ans=a-b; }
+  else ans=a*b;
+  return {eq:`${a} ${op} ${b} = ?`, ans};
+}
+
+function genOptions(correct){
+  const opts=new Set([correct]);
+  while(opts.size<4){
+    const off = Math.floor(Math.random()*10)+1;
+    opts.add(correct + (Math.random()>.5?off:-off));
+  }
+  return [...opts].sort(()=>Math.random()-.5);
+}
+
+function startGame(){
+  score=0; qnum=0; streak=0; bestStreak=0; correct=0; wrong=0; locked=false;
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('resultScreen').style.display='none';
+  document.getElementById('gameScreen').style.display='block';
+  nextQ();
+}
+
+function nextQ(){
+  if(qnum>=TOTAL){ endGame(); return; }
+  qnum++; locked=false;
+  const {eq,ans} = genQuestion();
+  document.getElementById('equation').textContent=eq;
+  document.getElementById('qnumEl').textContent=qnum;
+  document.getElementById('qnum').textContent=`Question ${qnum} of ${TOTAL}`;
+  document.getElementById('scoreEl').textContent=score;
+  document.getElementById('streakEl').textContent=streak;
+  document.getElementById('streakDisp').textContent=streak;
+  const opts=genOptions(ans);
+  const optDiv=document.getElementById('options');
+  optDiv.innerHTML='';
+  opts.forEach(o=>{
+    const btn=document.createElement('button');
+    btn.className='sm-opt'; btn.textContent=o;
+    btn.onclick=()=>answer(btn,o,ans,opts);
+    optDiv.appendChild(btn);
+  });
+  // Timer bar
+  clearInterval(qtimer);
+  let left=Q_TIME*10;
+  const fill=document.getElementById('timerFill');
+  fill.style.width='100%'; fill.className='sm-timer-fill';
+  qtimer=setInterval(()=>{
+    left--;
+    fill.style.width=(left/(Q_TIME*10)*100)+'%';
+    if(left<Q_TIME*3) fill.className='sm-timer-fill danger';
+    if(left<=0){ clearInterval(qtimer); timeOut(ans,opts); }
+  },100);
+}
+
+function answer(btn,chosen,ans,opts){
+  if(locked) return; locked=true; clearInterval(qtimer);
+  if(chosen===ans){
+    btn.classList.add('correct');
+    streak++; if(streak>bestStreak) bestStreak=streak;
+    score += 10 + (streak>1?streak*2:0); correct++;
+  } else {
+    btn.classList.add('wrong'); streak=0; wrong++;
+    document.querySelectorAll('.sm-opt').forEach(b=>{ if(parseInt(b.textContent)===ans) b.classList.add('correct'); });
+  }
+  setTimeout(nextQ,700);
+}
+
+function timeOut(ans,opts){
+  if(locked) return; locked=true;
+  streak=0; wrong++;
+  document.querySelectorAll('.sm-opt').forEach(b=>{ if(parseInt(b.textContent)===ans) b.classList.add('correct'); });
+  setTimeout(nextQ,700);
+}
+
+function endGame(){
+  clearInterval(qtimer);
+  document.getElementById('gameScreen').style.display='none';
+  document.getElementById('resultScreen').style.display='block';
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('rCorrect').textContent=correct;
+  document.getElementById('rWrong').textContent=wrong;
+  document.getElementById('rBestStreak').textContent=bestStreak;
+}
+
+function goStart(){
+  document.getElementById('resultScreen').style.display='none';
+  document.getElementById('startScreen').style.display='block';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – GameSpace 🕹️{% endblock %}
+{% block head %}
+<style>
+.gs-wrap{max-width:660px;margin:0 auto;padding:28px 16px 80px}
+.gs-title{text-align:center;margin-bottom:32px}
+.gs-title h1{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;color:#fff;margin-bottom:6px}
+.gs-title p{font-size:14px;color:rgba(255,255,255,.4)}
+.gs-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.gs-card{border-radius:22px;padding:26px 18px;text-align:center;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:10px;transition:.25s;position:relative;overflow:hidden;border:1.5px solid transparent}
+.gs-card::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);transition:.5s}
+.gs-card:hover::after{left:100%}
+.gs-card:hover{transform:translateY(-5px)}
+.gs-card-icon{font-size:40px}
+.gs-card-name{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;color:#fff}
+.gs-card-desc{font-size:11px;color:rgba(255,255,255,.45);font-weight:600;line-height:1.4}
+.gs-card-tag{position:absolute;top:10px;right:10px;font-size:9px;font-weight:800;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.gs-card.memory{background:linear-gradient(135deg,#1a1a4e,#2d1a4e);border-color:rgba(168,85,247,.3)}
+.gs-card.memory:hover{border-color:#a855f7;box-shadow:0 12px 30px rgba(168,85,247,.25)}
+.gs-card.memory .gs-card-tag{background:rgba(168,85,247,.2);color:#c084fc}
+.gs-card.speedmath{background:linear-gradient(135deg,#1a2e1a,#1a3d2a);border-color:rgba(74,222,128,.3)}
+.gs-card.speedmath:hover{border-color:#4ade80;box-shadow:0 12px 30px rgba(74,222,128,.2)}
+.gs-card.speedmath .gs-card-tag{background:rgba(74,222,128,.15);color:#4ade80}
+.gs-card.scramble{background:linear-gradient(135deg,#2e1a1a,#3d2a1a);border-color:rgba(251,146,60,.3)}
+.gs-card.scramble:hover{border-color:#fb923c;box-shadow:0 12px 30px rgba(251,146,60,.2)}
+.gs-card.scramble .gs-card-tag{background:rgba(251,146,60,.15);color:#fb923c}
+.gs-card.chess{background:linear-gradient(135deg,#1a1a1a,#2a2a2a);border-color:rgba(255,255,255,.2)}
+.gs-card.chess:hover{border-color:rgba(255,255,255,.5);box-shadow:0 12px 30px rgba(255,255,255,.1)}
+.gs-card.chess .gs-card-tag{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}
+.gs-coming{opacity:.5;cursor:not-allowed;filter:grayscale(.4)}
+.gs-coming:hover{transform:none !important}
+body.bee-mode .gs-title h1{color:#1a1a2e !important}
+body.bee-mode .gs-card-name{color:#1a1a2e !important}
+body.bee-mode .gs-card-desc{color:#7a5a00 !important}
+body.bee-mode .gs-card.memory{background:#f3e8ff !important;border-color:#a855f7 !important}
+body.bee-mode .gs-card.speedmath{background:#dcfce7 !important;border-color:#4ade80 !important}
+body.bee-mode .gs-card.scramble{background:#ffedd5 !important;border-color:#fb923c !important}
+body.bee-mode .gs-card.chess{background:#f1f5f9 !important;border-color:#94a3b8 !important}
+.gs-card.jigsaw{background:linear-gradient(135deg,#1a2e2a,#1a1a2e);border-color:rgba(99,102,241,.3)}
+.gs-card.jigsaw:hover{border-color:#6366f1;box-shadow:0 12px 30px rgba(99,102,241,.2)}
+.gs-card.jigsaw .gs-card-tag{background:rgba(99,102,241,.15);color:#818cf8}
+body.bee-mode .gs-card.jigsaw{background:#eef2ff !important;border-color:#6366f1 !important}
+@media(max-width:480px){.gs-grid{grid-template-columns:repeat(1,1fr)}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="gs-wrap">
+  <div class="gs-title">
+    <h1>🕹️ GameSpace</h1>
+    <p>Brain games to sharpen your mind. Casual, fun, unranked.</p>
+  </div>
+  <div class="gs-grid">
+    <a href="/games/memory" class="gs-card memory">
+      <div class="gs-card-tag">🃏 Memory</div>
+      <div class="gs-card-icon">🧠</div>
+      <div class="gs-card-name">Memory Match</div>
+      <div class="gs-card-desc">Flip cards, find pairs. Beat your best time!</div>
+    </a>
+    <a href="/games/speedmath" class="gs-card speedmath">
+      <div class="gs-card-tag">⚡ Speed</div>
+      <div class="gs-card-icon">🔢</div>
+      <div class="gs-card-name">Speed Math</div>
+      <div class="gs-card-desc">Rapid fire equations. How long can you streak?</div>
+    </a>
+    <a href="/games/scramble" class="gs-card scramble">
+      <div class="gs-card-tag">🔤 Words</div>
+      <div class="gs-card-icon">🔀</div>
+      <div class="gs-card-name">Word Scramble</div>
+      <div class="gs-card-desc">Unscramble the word before time runs out!</div>
+    </a>
+    <a href="/games/chess" class="gs-card chess">
+      <div class="gs-card-tag">♟️ Chess</div>
+      <div class="gs-card-icon">♛</div>
+      <div class="gs-card-name">Chess vs Stockfish</div>
+      <div class="gs-card-desc">Play against the world's strongest chess engine. 4 difficulty levels!</div>
+    </a>
+    <a href="/games/jigsaw" class="gs-card jigsaw">
+      <div class="gs-card-tag">🧩 Puzzle</div>
+      <div class="gs-card-icon">🧩</div>
+      <div class="gs-card-name">Jigsaw Puzzle</div>
+      <div class="gs-card-desc">Click pieces into place. 3×3 to 5×5 grids. 5 different images!</div>
+    </a>
+  </div>
+</div>
+{% endblock %}

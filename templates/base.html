@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}BeeWise.quiz{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* DARK MODE - default */
+:root{
+  --honey:#FFB703;--honey-dark:#FB8500;--honey-light:#FFD84D;
+  --page-bg:#1a1a2e;--page-bg2:#16213e;
+  --card-bg:#ffffff;--card-bg2:#f9fafb;
+  --text-primary:#1a1a2e;--text-page:#ffffff;
+  --text-muted:rgba(255,255,255,.5);--text-soft:rgba(255,255,255,.7);
+  --nav-bg:rgba(255,255,255,.04);--nav-border:rgba(255,183,3,.15);
+  --nav-link:rgba(255,255,255,.7);--nav-logo-sub:#ffffff;
+  --input-border:#e5e7eb;--input-bg:#ffffff;--input-text:#1a1a2e;
+  --stat-bg:rgba(255,255,255,.06);--stat-border:rgba(255,183,3,.15);
+  --item-bg:rgba(255,255,255,.05);--item-border:rgba(255,255,255,.08);
+  --section-title:#ffffff;--radius:18px;
+  --shadow:0 20px 60px rgba(0,0,0,.25);
+  --glow1:rgba(255,183,3,.12);--glow2:rgba(251,133,0,.10);
+}
+
+/* BEE MODE */
+body.bee-mode{
+  --page-bg:#fffbe6;--page-bg2:#fff3b0;
+  --card-bg:#ffffff;--card-bg2:#fffdf0;
+  --text-primary:#1a1a2e;--text-page:#1a1a2e;
+  --text-muted:rgba(26,26,46,.55);--text-soft:rgba(26,26,46,.75);
+  --nav-bg:rgba(255,183,3,.2);--nav-border:rgba(251,133,0,.3);
+  --nav-link:rgba(26,26,46,.7);--nav-logo-sub:#FB8500;
+  --input-border:#ffd84d;--input-bg:#fffff8;--input-text:#1a1a2e;
+  --stat-bg:rgba(255,183,3,.12);--stat-border:rgba(251,133,0,.25);
+  --item-bg:rgba(255,183,3,.08);--item-border:rgba(251,133,0,.18);
+  --section-title:#1a1a2e;
+  --shadow:0 20px 60px rgba(251,133,0,.2);
+  --glow1:rgba(255,183,3,.3);--glow2:rgba(251,133,0,.2);
+}
+
+body{font-family:'Nunito',sans-serif;background:var(--page-bg);color:var(--text-primary);min-height:100vh;transition:background .35s,color .35s}
+body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(circle at 20% 30%,var(--glow1) 0%,transparent 50%),radial-gradient(circle at 80% 70%,var(--glow2) 0%,transparent 50%);pointer-events:none;z-index:0;transition:.35s}
+.page-wrap{position:relative;z-index:1}
+
+/* NAVBAR */
+.navbar{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--nav-bg);backdrop-filter:blur(12px);border-bottom:1px solid var(--nav-border);transition:.35s;gap:12px}
+.nav-logo{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:var(--honey);text-decoration:none;letter-spacing:-.5px;flex-shrink:0}
+.nav-logo span{color:var(--nav-logo-sub);transition:.35s}
+.nav-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.nav-user{color:var(--text-muted);font-size:12px;transition:.35s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+.nav-user span{color:var(--honey-light);font-weight:700}
+
+/* THEME TOGGLE */
+.theme-toggle{display:flex;align-items:center;background:var(--stat-bg);border:1.5px solid var(--stat-border);border-radius:30px;padding:3px;transition:.25s;flex-shrink:0}
+.theme-toggle:hover{border-color:var(--honey)}
+.t-btn{padding:5px 10px;border-radius:24px;font-size:13px;border:none;cursor:pointer;transition:.2s;background:transparent;color:var(--text-muted);font-family:'Nunito',sans-serif;line-height:1}
+.t-btn.active{background:var(--honey);color:#1a1a2e;box-shadow:0 2px 8px rgba(255,183,3,.4)}
+
+/* NAV LINKS */
+.nav-links{display:flex;gap:4px;align-items:center}
+.nav-link{color:var(--nav-link);text-decoration:none;font-size:13px;font-weight:600;padding:7px 11px;border-radius:40px;transition:.2s;white-space:nowrap}
+.nav-link:hover{background:rgba(255,183,3,.15);color:var(--honey)}
+.nav-link.active{background:var(--honey);color:#1a1a2e}
+
+/* FLASH */
+.flash{max-width:500px;margin:16px auto 0;padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;text-align:center}
+.flash.error{background:#fee2e2;color:#dc2626}
+.flash.success{background:#d1fae5;color:#065f46}
+
+/* SHARED */
+.card{background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow)}
+.btn{display:inline-block;padding:14px 28px;border:none;border-radius:40px;font-family:'Nunito',sans-serif;font-size:16px;font-weight:800;cursor:pointer;transition:.25s;text-decoration:none;text-align:center}
+.btn-honey{background:linear-gradient(135deg,var(--honey-light),var(--honey-dark));color:#1a1a2e;box-shadow:0 6px 20px rgba(255,183,3,.4)}
+.btn-honey:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(255,183,3,.5)}
+.btn-dark{background:var(--page-bg);color:var(--honey);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.btn-dark:hover{transform:translateY(-3px)}
+
+/* ── Hamburger button (mobile only) ── */
+.hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;transition:.2s;flex-shrink:0}
+.hamburger span{display:block;width:22px;height:2.5px;background:var(--honey);border-radius:4px;transition:.3s}
+.hamburger.open span:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
+.hamburger.open span:nth-child(2){opacity:0;transform:translateX(-8px)}
+.hamburger.open span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+
+/* ── Mobile drawer — HIDDEN by default, only slides in when .open ── */
+.mobile-drawer{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:500}
+.mobile-drawer.open{display:block}
+.drawer-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px)}
+.drawer-panel{position:absolute;right:0;top:0;bottom:0;width:280px;background:var(--page-bg);border-left:1px solid var(--nav-border);display:flex;flex-direction:column;animation:slideIn .25s ease;box-shadow:-8px 0 32px rgba(0,0,0,.3)}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.drawer-header{padding:20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--nav-border);background:linear-gradient(135deg,#FFD84D22,#FB850011)}
+.drawer-user{font-size:14px;color:var(--text-muted)}
+.drawer-user strong{color:var(--honey-light);font-size:16px;display:block;margin-bottom:2px}
+.drawer-close{background:none;border:none;cursor:pointer;font-size:22px;color:var(--text-muted);padding:4px}
+.drawer-links{flex:1;padding:16px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+.drawer-link{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;text-decoration:none;font-size:15px;font-weight:700;color:var(--text-soft);transition:.2s}
+.drawer-link:hover{background:rgba(255,183,3,.1);color:var(--honey)}
+.drawer-link.active{background:rgba(255,183,3,.15);color:var(--honey)}
+.drawer-link .d-icon{font-size:20px;width:28px;text-align:center}
+.drawer-divider{height:1px;background:var(--nav-border);margin:8px 0}
+.drawer-footer{padding:16px;border-top:1px solid var(--nav-border)}
+.drawer-theme{display:flex;gap:8px;margin-bottom:12px}
+.drawer-theme button{flex:1;padding:10px;border:none;border-radius:12px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;transition:.2s;background:var(--stat-bg);color:var(--text-muted)}
+.drawer-theme button.active{background:var(--honey);color:#1a1a2e}
+.drawer-logout{display:block;width:100%;padding:12px;border:1.5px solid rgba(239,68,68,.4);border-radius:12px;background:rgba(239,68,68,.08);color:#ef4444;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;text-align:center;text-decoration:none;transition:.2s}
+
+/* ── Bottom nav bar (mobile only) ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:var(--page-bg);border-top:1px solid var(--nav-border);padding:8px 0 calc(8px + env(safe-area-inset-bottom));backdrop-filter:blur(12px)}
+.bottom-nav-inner{display:flex;justify-content:space-around;align-items:center}
+.bnav-item{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;padding:6px 12px;border-radius:12px;transition:.2s;min-width:56px}
+.bnav-item .b-icon{font-size:20px;line-height:1}
+.bnav-item .b-label{font-size:10px;font-weight:700;color:var(--text-muted);transition:.2s}
+.bnav-item.active .b-label,.bnav-item:hover .b-label{color:var(--honey)}
+.bnav-item.active{background:rgba(255,183,3,.12)}
+
+/* ── Mobile breakpoint — show hamburger, hide desktop nav ── */
+@media(max-width:700px){
+  .nav-links{display:none !important}
+  .theme-toggle{display:none !important}
+  .nav-user{display:none !important}
+  .hamburger{display:flex !important}
+  .bottom-nav{display:block !important}
+  .page-wrap{padding-bottom:70px}
+  #beebot-window{width:calc(100vw - 32px);right:16px;bottom:80px}
+  #beebot-bubble{bottom:80px;right:16px}
+}
+@media(min-width:701px){
+  .hamburger{display:none !important}
+  .mobile-drawer{display:none !important}
+  .bottom-nav{display:none !important}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BEE MODE — ALL text and UI elements go DARK on honey background
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Global text in bee mode ── */
+body.bee-mode,
+body.bee-mode p,
+body.bee-mode span,
+body.bee-mode div,
+body.bee-mode h1,body.bee-mode h2,body.bee-mode h3,body.bee-mode h4 {
+  color:#1a1a2e;
+}
+
+/* ── Navbar ── */
+body.bee-mode .navbar        { background:rgba(255,183,3,.25) !important; border-color:rgba(251,133,0,.35) !important; }
+body.bee-mode .nav-link      { color:rgba(26,26,46,.7) !important; }
+body.bee-mode .nav-link:hover{ background:rgba(251,133,0,.2) !important; color:#c05000 !important; }
+body.bee-mode .nav-link.active{ background:#FB8500 !important; color:#fff !important; }
+body.bee-mode .nav-user      { color:rgba(26,26,46,.5) !important; }
+
+/* ── Cards & stat cards ── */
+body.bee-mode .card,
+body.bee-mode .stat-card,
+body.bee-mode .s-card        { background:#fff !important; border:1.5px solid #ffd84d !important; box-shadow:0 4px 16px rgba(251,133,0,.15) !important; }
+body.bee-mode .stat-card .val,
+body.bee-mode .stat-card .v,
+body.bee-mode .s-card .val   { color:#c05000 !important; }
+body.bee-mode .stat-card .lbl,
+body.bee-mode .stat-card .l,
+body.bee-mode .s-card .lbl   { color:#5a4a00 !important; }
+
+/* ── Profile page ── */
+body.bee-mode .profile-username { color:#1a1a2e !important; }
+body.bee-mode .profile-joined   { color:#5a4a00 !important; }
+body.bee-mode .streak-pill      { background:rgba(251,133,0,.2) !important; color:#c05000 !important; border-color:rgba(251,133,0,.4) !important; }
+body.bee-mode .section-title    { color:#1a1a2e !important; font-weight:800 !important; }
+body.bee-mode .settings-card    { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .settings-card h3 { color:#1a1a2e !important; }
+
+/* ── Category bars — ALL bars honey/orange, NEVER red ── */
+body.bee-mode .cat-bar-label,
+body.bee-mode .cat-bar-label span { color:#1a1a2e !important; }
+body.bee-mode .bar-bg           { background:#ffe9a0 !important; border:1px solid #ffd84d !important; }
+body.bee-mode .bar-fill         { background:linear-gradient(90deg,#FB8500,#c05000) !important; }
+body.bee-mode .bar-fill.low     { background:linear-gradient(90deg,#FB8500,#c05000) !important; }
+body.bee-mode .bar-fill.mid     { background:linear-gradient(90deg,#FFB703,#FB8500) !important; }
+/* Dashboard category bars */
+body.bee-mode .cat-bar-fill     { background:linear-gradient(90deg,#FFB703,#FB8500) !important; }
+body.bee-mode .cat-bar-fill.low { background:linear-gradient(90deg,#FB8500,#c05000) !important; }
+body.bee-mode .cat-bar-bg       { background:#ffe9a0 !important; }
+body.bee-mode .cat-bar-pct      { color:#c05000 !important; }
+
+/* ── Dashboard ── */
+body.bee-mode .welcome h2   { color:#1a1a2e !important; }
+body.bee-mode .welcome p    { color:#5a4a00 !important; }
+body.bee-mode .history-item { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .history-mode { color:#1a1a2e !important; }
+body.bee-mode .history-sub,
+body.bee-mode .history-date { color:#7a6a00 !important; }
+body.bee-mode .empty-state  { color:#7a6a00 !important; }
+body.bee-mode .play-card    { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .play-card .title { color:#1a1a2e !important; }
+body.bee-mode .play-card .desc  { color:#5a4a00 !important; }
+body.bee-mode .play-card .arrow { color:#FB8500 !important; }
+body.bee-mode .play-rapid       { background:linear-gradient(135deg,#FFB703,#FB8500) !important; border-color:transparent !important; }
+body.bee-mode .play-rapid .title,
+body.bee-mode .play-rapid .desc,
+body.bee-mode .play-rapid .arrow { color:#1a1a2e !important; }
+
+/* ── Leaderboard ── */
+body.bee-mode .lb-row       { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .lb-user      { color:#1a1a2e !important; }
+body.bee-mode .lb-sub,
+body.bee-mode .lb-score     { color:#5a4a00 !important; }
+body.bee-mode .lb-tabs      { background:rgba(255,183,3,.2) !important; }
+body.bee-mode .lb-tab       { color:#7a5a00 !important; }
+body.bee-mode .lb-tab.active{ background:#FB8500 !important; color:#fff !important; }
+
+/* ── Mode page ── */
+body.bee-mode .mode-card    { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .mode-card .title { color:#1a1a2e !important; }
+body.bee-mode .mode-card .desc  { color:#5a4a00 !important; }
+body.bee-mode .practice-btn { background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .practice-btn .cat-name { color:#1a1a2e !important; }
+body.bee-mode .practice-btn .cat-count { color:#7a5a00 !important; }
+
+/* ── Quiz / RapidBee / Practice ── */
+body.bee-mode .rb-topbar,
+body.bee-mode .topbar       { background:#fff3b0 !important; border:2px solid rgba(251,133,0,.3) !important; }
+body.bee-mode .rb-topbar .rb-left,
+body.bee-mode .topbar div   { color:#1a1a2e !important; }
+body.bee-mode .timer-pill   { background:#1a1a2e !important; color:#FFD84D !important; }
+body.bee-mode .rb-card,
+body.bee-mode .quiz-card    { background:#fff !important; box-shadow:0 8px 24px rgba(251,133,0,.15) !important; }
+body.bee-mode .q-text       { color:#1a1a2e !important; }
+body.bee-mode .q-num        { color:#FB8500 !important; }
+body.bee-mode .q-counter    { color:#7a5a00 !important; }
+body.bee-mode .rb-option,
+body.bee-mode .option-label { background:#fffdf0 !important; border-color:#fde68a !important; }
+body.bee-mode .rb-option:hover:not(.locked) { background:#fff7e0 !important; border-color:#FB8500 !important; }
+body.bee-mode .opt-text     { color:#1a1a2e !important; }
+body.bee-mode .opt-letter   { background:#fde68a !important; color:#7a5a00 !important; }
+body.bee-mode .q-timer-bar  { background:rgba(255,183,3,.2) !important; }
+
+/* ── Result page ── */
+body.bee-mode .result-card  { background:#fff !important; box-shadow:0 16px 40px rgba(251,133,0,.2) !important; }
+body.bee-mode .result-title { color:#1a1a2e !important; }
+body.bee-mode .result-msg   { color:#5a4a00 !important; }
+body.bee-mode .rb-feedback-card.rb-correct { background:linear-gradient(135deg,#d1fae5,#a7f3d0) !important; }
+body.bee-mode .rb-feedback-card.rb-wrong   { background:linear-gradient(135deg,#fee2e2,#fecaca) !important; }
+body.bee-mode .rb-qtext     { color:#1a1a2e !important; }
+body.bee-mode .review-toggle { background:#fff !important; border-color:#ffd84d !important; color:#1a1a2e !important; }
+
+/* ── Admin ── */
+body.bee-mode .admin-header h2 { color:#fff !important; }
+body.bee-mode .section-label   { color:#1a1a2e !important; font-weight:800 !important; }
+body.bee-mode .a-tab           { background:rgba(255,183,3,.12) !important; color:#7a5a00 !important; }
+body.bee-mode .a-tab.active    { background:#FB8500 !important; color:#fff !important; }
+body.bee-mode .a-table td      { color:#1a1a2e !important; }
+body.bee-mode .a-table th      { background:#1a1a2e !important; color:#FFD84D !important; }
+body.bee-mode .a-table tr:hover td { background:#fff7e0 !important; }
+body.bee-mode .ov-card         { background:#fff !important; border:1.5px solid #ffd84d !important; }
+body.bee-mode .ov-card .val    { color:#c05000 !important; }
+body.bee-mode .ov-card .lbl    { color:#5a4a00 !important; }
+body.bee-mode .admin-banner    { background:rgba(255,183,3,.2) !important; }
+body.bee-mode .add-form        { background:rgba(255,183,3,.1) !important; border-color:rgba(251,133,0,.3) !important; }
+body.bee-mode .add-form h3     { color:#1a1a2e !important; }
+body.bee-mode .f-field label   { color:#1a1a2e !important; font-weight:700 !important; }
+body.bee-mode .f-field input,
+body.bee-mode .f-field select  { background:#fff !important; border-color:rgba(251,133,0,.4) !important; color:#1a1a2e !important; }
+
+/* ── Flash messages ── */
+body.bee-mode .flash.success { background:#d1fae5 !important; color:#065f46 !important; }
+body.bee-mode .flash.error   { background:#fee2e2 !important; color:#991b1b !important; }
+
+/* ── Mobile drawer ── */
+body.bee-mode .drawer-panel  { background:#fffbe6 !important; border-color:#ffd84d !important; }
+body.bee-mode .drawer-user strong { color:#c05000 !important; }
+body.bee-mode .drawer-user   { color:#5a4a00 !important; }
+body.bee-mode .drawer-link   { color:#5a4a00 !important; }
+body.bee-mode .drawer-link:hover { background:rgba(251,133,0,.15) !important; color:#c05000 !important; }
+body.bee-mode .drawer-link.active { color:#c05000 !important; background:rgba(251,133,0,.15) !important; }
+body.bee-mode .bottom-nav    { background:#fff3b0 !important; border-color:#ffd84d !important; }
+body.bee-mode .b-label       { color:#7a5a00 !important; }
+body.bee-mode .bnav-item.active .b-label,
+body.bee-mode .bnav-item:hover .b-label { color:#c05000 !important; }
+body.bee-mode .bnav-item.active { background:rgba(251,133,0,.15) !important; }
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="page-wrap">
+
+{% if session.get('username') %}
+<!-- Desktop navbar -->
+<nav class="navbar">
+  <a href="/dashboard" class="nav-logo">🐝 Quiz<span>Bee</span></a>
+  <div class="nav-right">
+    <span class="nav-user" title="{{ session.username }}">{{ session.username }}</span>
+    <div class="theme-toggle">
+      <button class="t-btn active" id="btn-dark" onclick="setTheme('dark')" title="Dark Mode">🌙</button>
+      <button class="t-btn" id="btn-bee" onclick="setTheme('bee')" title="Bee Mode">🐝</button>
+    </div>
+    <div class="nav-links">
+      <a href="/dashboard"   class="nav-link {% if request.path=='/dashboard' %}active{% endif %}">Home</a>
+      <a href="/mode"        class="nav-link {% if request.path=='/mode' %}active{% endif %}">Play</a>
+      <a href="/games"       class="nav-link {% if request.path.startswith('/games') %}active{% endif %}">🕹️ Games</a>
+      <a href="/leaderboard" class="nav-link {% if request.path=='/leaderboard' %}active{% endif %}">🏆 Board</a>
+      <a href="/profile"     class="nav-link {% if request.path=='/profile' %}active{% endif %}">👤 Profile</a>
+      {% if session.get('is_teacher') %}<a href="/teacher" class="nav-link {% if request.path.startswith('/teacher') %}active{% endif %}">👩‍🏫 Classes</a>{% endif %}
+      {% if session.get('is_admin') %}<a href="/teacher" class="nav-link {% if request.path.startswith('/teacher') %}active{% endif %}">👩‍🏫 Classes</a><a href="/admin" class="nav-link {% if request.path=='/admin' %}active{% endif %}">🎓 Admin</a>{% endif %}
+      <a href="/logout" class="nav-link">Logout</a>
+    </div>
+    <!-- Hamburger (mobile only) -->
+    <button class="hamburger" id="hamburgerBtn" onclick="toggleDrawer()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- Mobile drawer -->
+<div class="mobile-drawer" id="mobileDrawer">
+  <div class="drawer-overlay" onclick="toggleDrawer()"></div>
+  <div class="drawer-panel">
+    <div class="drawer-header">
+      <div class="drawer-user">
+        <strong>{{ session.username }}</strong>
+        Logged in
+      </div>
+      <button class="drawer-close" onclick="toggleDrawer()">✕</button>
+    </div>
+    <div class="drawer-links">
+      <a href="/dashboard"   class="drawer-link {% if request.path=='/dashboard' %}active{% endif %}"><span class="d-icon">🏠</span>Home</a>
+      <a href="/mode"        class="drawer-link {% if request.path=='/mode' %}active{% endif %}"><span class="d-icon">🎮</span>Play</a>
+      <a href="/leaderboard" class="drawer-link {% if request.path=='/leaderboard' %}active{% endif %}"><span class="d-icon">🏆</span>Leaderboard</a>
+      <a href="/games"       class="drawer-link {% if request.path.startswith('/games') %}active{% endif %}"><span class="d-icon">🕹️</span>Games</a>
+      <a href="/profile"     class="drawer-link {% if request.path=='/profile' %}active{% endif %}"><span class="d-icon">👤</span>Profile</a>
+      {% if session.get('is_admin') %}
+      <div class="drawer-divider"></div>
+      <a href="/admin" class="drawer-link {% if request.path=='/admin' %}active{% endif %}"><span class="d-icon">🎓</span>Admin Panel</a>
+      {% endif %}
+    </div>
+    <div class="drawer-footer">
+      <div class="drawer-theme">
+        <button id="dbtn-dark" class="active" onclick="setTheme('dark');updateDrawerTheme('dark')">🌙 Dark</button>
+        <button id="dbtn-bee" onclick="setTheme('bee');updateDrawerTheme('bee')">🐝 Bee</button>
+      </div>
+      <a href="/logout" class="drawer-logout">Logout</a>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile bottom navigation -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <a href="/dashboard" class="bnav-item {% if request.path=='/dashboard' %}active{% endif %}">
+      <span class="b-icon">🏠</span><span class="b-label">Home</span>
+    </a>
+    <a href="/mode" class="bnav-item {% if request.path=='/mode' %}active{% endif %}">
+      <span class="b-icon">🎮</span><span class="b-label">Play</span>
+    </a>
+    <a href="/leaderboard" class="bnav-item {% if request.path=='/leaderboard' %}active{% endif %}">
+      <span class="b-icon">🏆</span><span class="b-label">Board</span>
+    </a>
+    <a href="/profile" class="bnav-item {% if request.path=='/profile' %}active{% endif %}">
+      <span class="b-icon">👤</span><span class="b-label">Profile</span>
+    </a>
+  </div>
+</nav>
+
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for cat, msg in messages %}
+      <div class="flash {{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{% block content %}{% endblock %}
+</div>
+
+<script>
+(function(){
+  const t = localStorage.getItem('qb-theme') || 'dark';
+  if(t === 'bee') document.body.classList.add('bee-mode');
+  updateBtns(t); updateDrawerTheme(t);
+})();
+
+// Mobile drawer
+function toggleDrawer(){
+  const drawer = document.getElementById('mobileDrawer');
+  const btn    = document.getElementById('hamburgerBtn');
+  if(!drawer) return;
+  const open = drawer.classList.toggle('open');
+  if(btn) btn.classList.toggle('open', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+// Close drawer on navigation
+document.addEventListener('click', function(e){
+  if(e.target.closest('.drawer-link') && !e.target.closest('.drawer-footer')){
+    setTimeout(()=>{
+      const d=document.getElementById('mobileDrawer');
+      const b=document.getElementById('hamburgerBtn');
+      if(d){d.classList.remove('open');b&&b.classList.remove('open');document.body.style.overflow='';}
+    }, 50);
+  }
+});
+function updateDrawerTheme(t){
+  const dd = document.getElementById('dbtn-dark');
+  const db = document.getElementById('dbtn-bee');
+  if(!dd||!db) return;
+  dd.classList.toggle('active', t==='dark');
+  db.classList.toggle('active', t==='bee');
+}
+
+function setTheme(t){
+  document.body.classList.toggle('bee-mode', t === 'bee');
+  localStorage.setItem('qb-theme', t);
+  updateBtns(t);
+}
+function updateBtns(t){
+  const d = document.getElementById('btn-dark');
+  const b = document.getElementById('btn-bee');
+  if(!d || !b) return;
+  d.classList.toggle('active', t === 'dark');
+  b.classList.toggle('active', t === 'bee');
+}
+</script>
+
+{% if session.get('username') and not session.get('is_admin') %}
+<!-- ── BeeBot AI Study Buddy ─────────────────────────────────── -->
+{% set hide_beebot = request.path in ['/quiz', '/rapidbee', '/beexam/quiz', '/room/quiz', '/customizebee/quiz', '/submit_quiz'] or request.path.startswith('/beexam/quiz') or request.path.startswith('/games/') %}
+
+{% if not hide_beebot %}
+<div id="beebot-bubble" onclick="toggleBeeBot()" title="Chat with BeeBot AI">
+  <span id="beebot-icon">🐝</span>
+  <span id="beebot-label">Study Buddy</span>
+  <span id="beebot-notif" style="display:none">1</span>
+</div>
+
+<div id="beebot-window">
+  <div id="beebot-header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:26px">🐝</span>
+      <div>
+        <div style="font-weight:800;font-size:15px;color:#1a1a2e">BeeBot</div>
+        <div style="font-size:11px;color:rgba(26,26,46,.6)">AI Study Buddy</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button onclick="resizeBeeBot()" id="beebotResizeBtn" title="Expand"
+        style="background:none;border:1px solid rgba(26,26,46,.2);cursor:pointer;font-size:13px;
+               color:rgba(26,26,46,.5);padding:3px 8px;border-radius:6px;transition:.2s">⛶</button>
+      <button onclick="toggleBeeBot()" style="background:none;border:none;cursor:pointer;font-size:20px;color:rgba(26,26,46,.5);padding:0">✕</button>
+    </div>
+  </div>
+  <div id="beebot-messages">
+    <div class="bot-msg">
+      Hey {{ session.username }}! 🐝 I'm BeeBot, your AI study buddy!<br><br>
+      Ask me anything about <b>any subject</b> — Science, Maths, History, Geography, NEET, JEE, SAT or anything else. I'm here to help you improve! 🍯
+    </div>
+  </div>
+  <div id="beebot-typing" style="display:none">
+    <div class="bot-msg" style="padding:10px 14px">
+      <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+    </div>
+  </div>
+  <div id="beebot-input-wrap">
+    <input type="text" id="beebot-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendBeeBot()">
+    <button onclick="sendBeeBot()">➤</button>
+  </div>
+</div>
+{% endif %}
+
+<style>
+/* Bubble */
+#beebot-bubble{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  display:flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,#FFD84D,#FB8500);
+  color:#1a1a2e;font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;
+  padding:12px 18px;border-radius:40px;cursor:pointer;
+  box-shadow:0 8px 24px rgba(251,133,0,.5);
+  transition:.25s;user-select:none;
+}
+#beebot-bubble:hover{transform:translateY(-4px);box-shadow:0 14px 32px rgba(251,133,0,.6)}
+#beebot-icon{font-size:20px;animation:beeBounce 2s ease-in-out infinite}
+@keyframes beeBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+#beebot-notif{
+  position:absolute;top:-6px;right:-6px;
+  background:#ef4444;color:#fff;
+  width:18px;height:18px;border-radius:50%;
+  font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800;
+}
+
+/* Chat window */
+#beebot-window{
+  position:fixed;bottom:90px;right:24px;z-index:999;
+  width:340px;max-height:500px;
+  background:#fff;border-radius:20px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+  display:none;flex-direction:column;overflow:hidden;
+  animation:slideUp .3s ease;
+  font-family:'Nunito',sans-serif;
+  transition:width .3s ease, max-height .3s ease, bottom .3s ease, right .3s ease;
+}
+#beebot-window.expanded{
+  width:520px;
+  max-height:700px;
+  bottom:24px;
+  right:24px;
+}
+@media(max-width:600px){
+  #beebot-window.expanded{width:calc(100vw - 32px);max-height:80vh}
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+#beebot-header{
+  background:linear-gradient(135deg,#FFD84D,#FB8500);
+  padding:14px 16px;display:flex;justify-content:space-between;align-items:center;
+}
+#beebot-messages{
+  flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;
+  max-height:320px;background:#f9fafb;
+}
+.bot-msg{
+  background:#fff;border-radius:14px 14px 14px 4px;
+  padding:10px 14px;font-size:13px;line-height:1.5;color:#1a1a2e;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:90%;align-self:flex-start;
+}
+.user-msg{
+  background:linear-gradient(135deg,#FFD84D,#FB8500);
+  border-radius:14px 14px 4px 14px;
+  padding:10px 14px;font-size:13px;line-height:1.5;color:#1a1a2e;font-weight:600;
+  max-width:90%;align-self:flex-end;
+}
+.typing-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:#FB8500;margin:0 2px;
+  animation:typingAnim 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2){animation-delay:.2s}
+.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes typingAnim{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
+#beebot-input-wrap{
+  display:flex;gap:0;border-top:1px solid #e5e7eb;background:#fff;flex-shrink:0;
+}
+#beebot-input{
+  flex:1;padding:12px 14px;border:none;outline:none;
+  font-family:'Nunito',sans-serif;font-size:14px;color:#1a1a2e;background:transparent;
+  min-width:0;
+}
+#beebot-input-wrap button{
+  flex-shrink:0;padding:0 16px;border:none;background:linear-gradient(135deg,#FFD84D,#FB8500);
+  color:#1a1a2e;font-size:18px;cursor:pointer;transition:.2s;
+}
+#beebot-input-wrap button:hover{background:#FB8500}
+
+/* Mobile */
+@media(max-width:480px){
+  #beebot-window{width:calc(100vw - 32px);right:16px;bottom:80px}
+  #beebot-bubble{bottom:16px;right:16px}
+  #beebot-label{display:none}
+}
+</style>
+
+<script>
+{% if not hide_beebot %}
+var beeBotOpen = false;
+var beeBotExpanded = false;
+
+function resizeBeeBot() {
+  var win = document.getElementById('beebot-window');
+  var btn = document.getElementById('beebotResizeBtn');
+  if (!win) return;
+  beeBotExpanded = !beeBotExpanded;
+  win.classList.toggle('expanded', beeBotExpanded);
+  btn.textContent = beeBotExpanded ? '⊡' : '⛶';
+  btn.title = beeBotExpanded ? 'Shrink' : 'Expand';
+  scrollBeeBot();
+}
+
+function toggleBeeBot() {
+  var win    = document.getElementById('beebot-window');
+  var bubble = document.getElementById('beebot-bubble');
+  if (!win) return;
+  beeBotOpen = !beeBotOpen;
+  win.style.display    = beeBotOpen ? 'flex' : 'none';
+  win.style.flexDirection = 'column';
+  bubble.style.display = beeBotOpen ? 'none' : 'flex';
+  var notif = document.getElementById('beebot-notif');
+  if (notif) notif.style.display = 'none';
+  if (beeBotOpen) {
+    var inp = document.getElementById('beebot-input');
+    if (inp) inp.focus();
+    scrollBeeBot();
+  }
+}
+
+function scrollBeeBot() {
+  var msgs = document.getElementById('beebot-messages');
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+}
+
+function bbEscape(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function addMsg(text, isUser) {
+  var msgs = document.getElementById('beebot-messages');
+  if (!msgs) return;
+  var div = document.createElement('div');
+  div.className = isUser ? 'user-msg' : 'bot-msg';
+  var safe = bbEscape(text);
+  safe = safe.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+  safe = safe.replace(/\n/g, '<br>');
+  div.innerHTML = safe;
+  msgs.appendChild(div);
+  scrollBeeBot();
+}
+
+async function sendBeeBot() {
+  var inp = document.getElementById('beebot-input');
+  if (!inp) return;
+  var msg = inp.value.trim();
+  if (!msg) return;
+  addMsg(msg, true);
+  inp.value = '';
+  var typing = document.getElementById('beebot-typing');
+  if (typing) {
+    typing.style.display = 'block';
+    var msgs = document.getElementById('beebot-messages');
+    if (msgs) msgs.appendChild(typing);
+    scrollBeeBot();
+  }
+  try {
+    var fd = new FormData();
+    fd.append('message', msg);
+    var res = await fetch('/ai_chat', { method: 'POST', body: fd });
+    var data = await res.json();
+    if (typing) typing.style.display = 'none';
+    if (data.error) {
+      addMsg('❌ ' + data.error, false);
+    } else {
+      addMsg(data.reply, false);
+    }
+  } catch(e) {
+    if (typing) typing.style.display = 'none';
+    addMsg('Could not reach BeeBot 😔 Check your internet and try again!', false);
+  }
+}
+{% endif %}
+</script>
+{% endif %}
+
+</body>
+</html>

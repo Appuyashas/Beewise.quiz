@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Memory Match 🧠{% endblock %}
+{% block head %}
+<style>
+.gm-wrap{max-width:600px;margin:0 auto;padding:20px 16px 80px}
+.gm-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.gm-title{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;color:#fff}
+.gm-stats{display:flex;gap:10px}
+.gm-stat{background:rgba(168,85,247,.12);border:1.5px solid rgba(168,85,247,.25);border-radius:30px;padding:6px 16px;font-size:13px;font-weight:800;color:#c084fc;font-family:'Space Grotesk',sans-serif}
+.gm-stat span{color:#fff}
+.gm-grid{display:grid;gap:10px;margin-bottom:20px}
+.gm-grid.size-4{grid-template-columns:repeat(4,1fr)}
+.gm-grid.size-6{grid-template-columns:repeat(6,1fr)}
+.gm-card{aspect-ratio:1;border-radius:14px;cursor:pointer;perspective:600px;position:relative}
+.gm-card-inner{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .4s cubic-bezier(.4,0,.2,1)}
+.gm-card.flipped .gm-card-inner,.gm-card.matched .gm-card-inner{transform:rotateY(180deg)}
+.gm-front,.gm-back{position:absolute;width:100%;height:100%;border-radius:14px;backface-visibility:hidden;display:flex;align-items:center;justify-content:center}
+.gm-front{background:linear-gradient(135deg,#2d1a4e,#1a1a2e);border:2px solid rgba(168,85,247,.3);font-size:22px}
+.gm-back{background:linear-gradient(135deg,#a855f7,#7c3aed);border:2px solid #a855f7;transform:rotateY(180deg);font-size:28px}
+.gm-card.matched .gm-back{background:linear-gradient(135deg,#4ade80,#16a34a);border-color:#4ade80;animation:matchPop .3s ease}
+@keyframes matchPop{0%{transform:rotateY(180deg) scale(1)}50%{transform:rotateY(180deg) scale(1.15)}100%{transform:rotateY(180deg) scale(1)}}
+.gm-card.shake .gm-back{animation:shake .35s ease}
+@keyframes shake{0%,100%{transform:rotateY(180deg) translateX(0)}25%{transform:rotateY(180deg) translateX(-6px)}75%{transform:rotateY(180deg) translateX(6px)}}
+.gm-levels{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.gm-level-btn{padding:7px 18px;border-radius:30px;border:1.5px solid rgba(168,85,247,.3);background:rgba(168,85,247,.07);color:rgba(255,255,255,.5);font-size:13px;font-weight:700;cursor:pointer;transition:.2s;font-family:'Nunito',sans-serif}
+.gm-level-btn:hover,.gm-level-btn.active{background:rgba(168,85,247,.25);border-color:#a855f7;color:#c084fc}
+.gm-win{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:center;justify-content:center;padding:20px}
+.gm-win.show{display:flex}
+.gm-win-box{background:#1a1a2e;border:2px solid rgba(168,85,247,.4);border-radius:24px;padding:32px;text-align:center;max-width:360px;width:100%}
+.gm-win-box h2{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:800;color:#fff;margin-bottom:8px}
+.gm-win-box p{color:rgba(255,255,255,.5);font-size:14px;margin-bottom:20px}
+.gm-win-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+.gm-win-stat{background:rgba(255,255,255,.05);border-radius:14px;padding:14px}
+.gm-win-stat .v{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:#a855f7}
+.gm-win-stat .l{font-size:11px;color:rgba(255,255,255,.35);font-weight:700;text-transform:uppercase;margin-top:3px}
+.gm-btn{width:100%;padding:14px;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:.2s;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;margin-bottom:8px}
+.gm-btn.sec{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
+.gm-btn:hover{transform:translateY(-2px)}
+body.bee-mode .gm-title{color:#1a1a2e !important}
+body.bee-mode .gm-stat{background:#fff3b0 !important;border-color:#ffd84d !important;color:#7a5a00 !important}
+body.bee-mode .gm-stat span{color:#1a1a2e !important}
+body.bee-mode .gm-front{background:linear-gradient(135deg,#e9d5ff,#f3e8ff) !important;border-color:#a855f7 !important}
+body.bee-mode .gm-level-btn{background:#fff !important;border-color:#fde68a !important;color:#7a5a00 !important}
+body.bee-mode .gm-level-btn.active{background:#ffd84d !important;color:#1a1a2e !important;border-color:#FB8500 !important}
+body.bee-mode .gm-win-box{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .gm-win-box h2{color:#1a1a2e !important}
+body.bee-mode .gm-win-stat{background:#fffbeb !important}
+body.bee-mode .gm-win-stat .l{color:#7a5a00 !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="gm-wrap">
+  <div class="gm-header">
+    <div>
+      <div class="gm-title">🧠 Memory Match</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.35);margin-top:2px">Flip cards, find all pairs!</div>
+    </div>
+    <div class="gm-stats">
+      <div class="gm-stat">⏱ <span id="timerEl">0:00</span></div>
+      <div class="gm-stat">🔁 <span id="movesEl">0</span> moves</div>
+    </div>
+  </div>
+
+  <div class="gm-levels">
+    <span style="font-size:12px;color:rgba(255,255,255,.35);align-self:center;margin-right:4px">Level:</span>
+    <button class="gm-level-btn active" onclick="startGame(4)" id="lvl4">Easy (4×4)</button>
+    <button class="gm-level-btn" onclick="startGame(6)" id="lvl6">Hard (6×4)</button>
+  </div>
+
+  <div class="gm-grid size-4" id="board"></div>
+  <button class="gm-btn sec" onclick="startGame(currentSize)" style="margin-top:4px">🔄 Restart</button>
+</div>
+
+<!-- Win modal -->
+<div class="gm-win" id="winModal">
+  <div class="gm-win-box">
+    <div style="font-size:48px;margin-bottom:8px">🎉</div>
+    <h2>You Did It!</h2>
+    <p>All pairs matched!</p>
+    <div class="gm-win-stats">
+      <div class="gm-win-stat"><div class="v" id="winTime">-</div><div class="l">Time</div></div>
+      <div class="gm-win-stat"><div class="v" id="winMoves">-</div><div class="l">Moves</div></div>
+      <div class="gm-win-stat"><div class="v" id="winScore">-</div><div class="l">Score</div></div>
+      <div class="gm-win-stat"><div class="v" id="winStars">-</div><div class="l">Stars</div></div>
+    </div>
+    <button class="gm-btn" onclick="startGame(currentSize)">▶ Play Again</button>
+    <button class="gm-btn sec" onclick="window.location='/games'">← Back to Games</button>
+  </div>
+</div>
+
+<script>
+const EMOJIS = ['🐝','🍯','🌸','🦋','🌟','⭐','🎯','🔥','🍎','🎸','🌈','🐬','🦊','🐧','🍕','🎪','🚀','💎'];
+let flipped=[], matched=0, moves=0, timer=null, seconds=0, currentSize=4, lock=false, total=0;
+
+function startGame(size){
+  currentSize = size;
+  document.querySelectorAll('.gm-level-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(size===4?'lvl4':'lvl6').classList.add('active');
+  const board = document.getElementById('board');
+  board.className = 'gm-grid size-' + (size===4?'4':'6');
+  const pairs = size===4 ? 8 : 12;
+  total = pairs;
+  const pool = EMOJIS.slice(0,pairs);
+  const cards = [...pool,...pool].sort(()=>Math.random()-.5);
+  board.innerHTML = '';
+  flipped=[]; matched=0; moves=0; seconds=0; lock=false;
+  document.getElementById('movesEl').textContent='0';
+  clearInterval(timer);
+  timer = setInterval(()=>{ seconds++; document.getElementById('timerEl').textContent=fmt(seconds); },1000);
+  cards.forEach((emoji,i)=>{
+    const card = document.createElement('div');
+    card.className='gm-card'; card.dataset.emoji=emoji; card.dataset.idx=i;
+    card.innerHTML=`<div class="gm-card-inner"><div class="gm-front">🐝</div><div class="gm-back">${emoji}</div></div>`;
+    card.onclick=()=>flipCard(card);
+    board.appendChild(card);
+  });
+  document.getElementById('winModal').classList.remove('show');
+}
+
+function flipCard(card){
+  if(lock||card.classList.contains('flipped')||card.classList.contains('matched')) return;
+  card.classList.add('flipped');
+  flipped.push(card);
+  if(flipped.length===2){
+    lock=true; moves++;
+    document.getElementById('movesEl').textContent=moves;
+    const [a,b]=flipped;
+    if(a.dataset.emoji===b.dataset.emoji){
+      setTimeout(()=>{ a.classList.add('matched'); b.classList.add('matched'); matched++; flipped=[]; lock=false;
+        if(matched===total){ clearInterval(timer); showWin(); }
+      },300);
+    } else {
+      setTimeout(()=>{ a.classList.add('shake'); b.classList.add('shake');
+        setTimeout(()=>{ a.classList.remove('flipped','shake'); b.classList.remove('flipped','shake'); flipped=[]; lock=false; },400);
+      },600);
+    }
+  }
+}
+
+function showWin(){
+  const score = Math.max(100, 1000 - moves*10 - seconds*2);
+  const stars = score>800?'⭐⭐⭐':score>500?'⭐⭐':'⭐';
+  document.getElementById('winTime').textContent=fmt(seconds);
+  document.getElementById('winMoves').textContent=moves;
+  document.getElementById('winScore').textContent=score;
+  document.getElementById('winStars').textContent=stars;
+  document.getElementById('winModal').classList.add('show');
+}
+
+function fmt(s){ return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0'); }
+startGame(4);
+</script>
+{% endblock %}

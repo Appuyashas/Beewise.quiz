@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% block title %}Teacher Dashboard | BeeWise.quiz{% endblock %}
+{% block head %}
+<style>
+/* ── Dark mode fixes for teacher dashboard ── */
+body:not(.bee-mode) {
+  --card-bg: #1e1e2e;
+  --stat-border: rgba(255,183,3,.18);
+  --text-primary: #ffffff;
+  --text-muted: rgba(255,255,255,.45);
+  --item-border: rgba(255,255,255,.08);
+  --item-bg: rgba(255,255,255,.04);
+  --input-bg: rgba(255,255,255,.07);
+  --radius: 18px;
+  --shadow: 0 8px 24px rgba(0,0,0,.3);
+}
+body:not(.bee-mode) select,
+body:not(.bee-mode) input[type="text"],
+body:not(.bee-mode) input[type="number"],
+body:not(.bee-mode) input[type="datetime-local"],
+body:not(.bee-mode) input[type="file"]{
+  background:rgba(255,255,255,.07) !important;
+  color:#fff !important;
+  border-color:rgba(255,255,255,.15) !important;
+}
+body:not(.bee-mode) select option{ background:#1e1e2e; color:#fff; }
+body:not(.bee-mode) table{ color:#fff; }
+body:not(.bee-mode) th{ color:rgba(255,255,255,.45) !important; }
+body:not(.bee-mode) .t-modal-box{ background:#1e1e2e !important; border:1.5px solid rgba(255,183,3,.25) !important; }
+body:not(.bee-mode) .t-input{ background:rgba(255,255,255,.07) !important; color:#fff !important; border-color:rgba(255,255,255,.15) !important; }
+body:not(.bee-mode) .t-input::placeholder{ color:rgba(255,255,255,.3) !important; }
+body:not(.bee-mode) .t-btn-sec{ border-color:rgba(255,255,255,.15) !important; color:rgba(255,255,255,.5) !important; }
+
+/* Bee mode fixes */
+body.bee-mode select,
+body.bee-mode input[type="text"],
+body.bee-mode input[type="number"],
+body.bee-mode input[type="datetime-local"]{
+  background:#fffff8 !important;
+  color:#1a1a2e !important;
+  border-color:#ffd84d !important;
+}
+body.bee-mode table{ color:#1a1a2e; }
+body.bee-mode th{ color:#7a5a00 !important; }
+body.bee-mode .t-modal-box{ background:#fff !important; border-color:#ffd84d !important; }
+body.bee-mode .t-input{ background:#fffff8 !important; color:#1a1a2e !important; border-color:#ffd84d !important; }
+body.bee-mode .t-btn-sec{ border-color:#fde68a !important; color:#7a5a00 !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-wrap">
+<div style="max-width:1000px;margin:0 auto;padding:24px 16px 60px">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px">
+    <div>
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:800;color:var(--text-primary);margin-bottom:4px">👩‍🏫 Teacher Dashboard</h1>
+      <div style="font-size:13px;color:var(--text-muted)">Manage classes · Create quiz rooms · Track students</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="showModal('createClassModal')" style="padding:10px 18px;background:linear-gradient(135deg,#FFD84D,#FB8500);border:none;border-radius:12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:#1a1a2e;cursor:pointer">+ New Class</button>
+      <button onclick="showModal('createRoomModal')" style="padding:10px 18px;background:linear-gradient(135deg,#a855f7,#7c3aed);border:none;border-radius:12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:#fff;cursor:pointer">🎮 New Quiz Room</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:4px;background:rgba(255,255,255,.05);border:1px solid rgba(255,183,3,.1);border-radius:14px;padding:4px;margin-bottom:24px;flex-wrap:wrap">
+    <button class="t-tab active" onclick="switchTab('classes')">🏫 Classes ({{ total_classes }})</button>
+    <button class="t-tab" onclick="switchTab('rooms')">🎮 Quiz Rooms ({{ rooms|length }})</button>
+    <button class="t-tab" onclick="switchTab('schedule')">📅 Scheduled Tests</button>
+    <button class="t-tab" onclick="switchTab('anticheat')">🔍 Anti-Cheat Monitor</button>
+  </div>
+
+  <!-- ── CLASSES TAB ── -->
+  <div id="tab-classes">
+    {% set ns = namespace(total_students=0) %}
+    {% for cd in class_data %}{% set ns.total_students = ns.total_students + cd.students|length %}{% endfor %}
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+      <div style="flex:1;min-width:120px;background:var(--card-bg);border-radius:14px;padding:16px 20px;border:1px solid var(--stat-border);text-align:center">
+        <div style="font-size:26px;font-weight:800;color:var(--honey)">{{ total_classes }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Classes</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:var(--card-bg);border-radius:14px;padding:16px 20px;border:1px solid var(--stat-border);text-align:center">
+        <div style="font-size:26px;font-weight:800;color:#22c55e">{{ ns.total_students }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Students</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:var(--card-bg);border-radius:14px;padding:16px 20px;border:1px solid var(--stat-border);text-align:center">
+        <div style="font-size:26px;font-weight:800;color:#a855f7">{{ rooms|length }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Quiz Rooms</div>
+      </div>
+    </div>
+
+    {% if class_data %}
+      {% for cd in class_data %}
+      <div style="background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border);margin-bottom:20px;overflow:hidden">
+        <div style="padding:16px 22px;border-bottom:1px solid var(--item-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:var(--text-primary)">🏫 {{ cd.cls.name }}</div>
+            <div style="margin-top:4px;display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;color:var(--text-muted)">Join Code:</span>
+              <code style="background:rgba(255,183,3,.15);color:var(--honey);border:1px solid rgba(255,183,3,.3);border-radius:6px;padding:2px 10px;font-size:13px;font-weight:700;letter-spacing:2px">{{ cd.cls.code }}</code>
+            </div>
+          </div>
+          <div style="font-size:13px;color:var(--text-muted)">{{ cd.students|length }} student{% if cd.students|length != 1 %}s{% endif %}</div>
+        </div>
+        {% if cd.students %}
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--item-border)">
+                <th style="text-align:left;padding:10px 20px;color:var(--text-muted);font-weight:600">#</th>
+                <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:600">Student</th>
+                <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:600">Games</th>
+                <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:600">Avg Score</th>
+                <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:600">Best</th>
+                <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:600">Streak</th>
+                <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:600">⚠️ Tab Switches</th>
+                <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:600">Report</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in cd.students %}
+              <tr style="border-bottom:1px solid var(--item-border)" onmouseover="this.style.background='var(--item-bg)'" onmouseout="this.style.background=''">
+                <td style="padding:10px 20px;font-weight:700;color:var(--text-muted)">{% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
+                <td style="padding:10px 12px"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">{{ s.avatar or '🐝' }}</span><span style="font-weight:600;color:var(--text-primary)">{{ s.username }}</span></div></td>
+                <td style="padding:10px 12px;text-align:center;color:var(--text-primary)">{{ s.games or 0 }}</td>
+                <td style="padding:10px 12px;text-align:center">
+                  {% if s.avg_pct %}<span style="font-weight:700;color:{% if s.avg_pct>=80 %}#22c55e{% elif s.avg_pct>=60 %}var(--honey){% else %}#ef4444{% endif %}">{{ s.avg_pct }}%</span>
+                  {% else %}<span style="color:var(--text-muted)">—</span>{% endif %}
+                </td>
+                <td style="padding:10px 12px;text-align:center;font-weight:600;color:#22c55e">{{ s.best or '—' }}{% if s.best %}%{% endif %}</td>
+                <td style="padding:10px 12px;text-align:center">{% if s.streak and s.streak>0 %}<span style="color:#fb8500;font-weight:700">🔥 {{ s.streak }}</span>{% else %}<span style="color:var(--text-muted)">—</span>{% endif %}</td>
+                <td style="padding:10px 12px;text-align:center">
+                  {% if s.total_tab_switches and s.total_tab_switches > 0 %}
+                    <span style="color:#ef4444;font-weight:700;background:rgba(239,68,68,.1);padding:3px 10px;border-radius:20px;font-size:12px">⚠️ {{ s.total_tab_switches }} switches</span>
+                  {% else %}
+                    <span style="color:#22c55e;font-size:12px">✅ Clean</span>
+                  {% endif %}
+                </td>
+                <td style="padding:10px 12px;text-align:center">
+                  <a href="/teacher/student/{{ s.id }}" style="display:inline-block;padding:5px 14px;background:rgba(255,183,3,.15);border:1px solid rgba(255,183,3,.3);border-radius:8px;font-size:12px;font-weight:700;color:var(--honey);text-decoration:none">View →</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div style="padding:28px;text-align:center;color:var(--text-muted);font-size:14px">🐝 No students yet. Share code <strong style="color:var(--honey)">{{ cd.cls.code }}</strong></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:60px 20px;background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border)">
+      <div style="font-size:48px;margin-bottom:12px">🏫</div>
+      <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:8px">No classes yet</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px">Create your first class and share the join code</div>
+      <button onclick="showModal('createClassModal')" style="padding:12px 28px;background:linear-gradient(135deg,#FFD84D,#FB8500);border:none;border-radius:12px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;color:#1a1a2e;cursor:pointer">+ Create First Class</button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── QUIZ ROOMS TAB ── -->
+  <div id="tab-rooms" style="display:none">
+    {% if rooms %}
+      {% for room in rooms %}
+      <div style="background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border);margin-bottom:16px;padding:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--text-primary)">🎮 {{ room.title }}</div>
+            <div style="margin-top:4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--text-muted)">Code:</span>
+              <code style="background:rgba(168,85,247,.15);color:#a855f7;border:1px solid rgba(168,85,247,.3);border-radius:6px;padding:2px 10px;font-size:13px;font-weight:700;letter-spacing:2px">{{ room.code }}</code>
+              <span style="font-size:12px;color:var(--text-muted)">⏱ {{ room.time_limit }}s/q</span>
+              <span style="font-size:12px;color:var(--text-muted)">{{ (room_results[room.id]|length) if room.id in room_results else 0 }} submissions</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <a href="/teacher/room/results/{{ room.id }}" style="padding:7px 16px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.3);border-radius:10px;font-size:12px;font-weight:700;color:#a855f7;text-decoration:none">📊 Results</a>
+            <form method="post" action="/teacher/room/delete/{{ room.id }}" onsubmit="return confirm('Delete this room?')" style="display:inline">
+              <button type="submit" style="padding:7px 14px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:10px;font-size:12px;font-weight:700;color:#ef4444;cursor:pointer">🗑</button>
+            </form>
+          </div>
+        </div>
+        <!-- Quick results preview -->
+        {% set rr = room_results.get(room.id, []) %}
+        {% if rr %}
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <tr style="color:var(--text-muted)"><th style="text-align:left;padding:6px 8px">Student</th><th style="text-align:center;padding:6px 8px">Score</th><th style="text-align:center;padding:6px 8px">%</th><th style="text-align:center;padding:6px 8px">Time</th></tr>
+            {% for r in rr[:5] %}
+            <tr style="border-top:1px solid var(--item-border)">
+              <td style="padding:6px 8px;color:var(--text-primary)">{{ r.avatar or '🐝' }} {{ r.username }}</td>
+              <td style="padding:6px 8px;text-align:center;color:var(--text-primary)">{{ r.score }}/{{ r.total }}</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:{% if r.pct>=80 %}#22c55e{% elif r.pct>=60 %}var(--honey){% else %}#ef4444{% endif %}">{{ r.pct }}%</td>
+              <td style="padding:6px 8px;text-align:center;color:var(--text-muted)">{{ r.time_taken }}s</td>
+            </tr>
+            {% endfor %}
+          </table>
+          {% if rr|length > 5 %}<div style="text-align:center;margin-top:8px"><a href="/teacher/room/results/{{ room.id }}" style="font-size:12px;color:var(--honey);font-weight:700">View all {{ rr|length }} →</a></div>{% endif %}
+        </div>
+        {% else %}
+        <div style="font-size:13px;color:var(--text-muted);text-align:center;padding:12px">No submissions yet</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:50px 20px;background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border)">
+      <div style="font-size:48px;margin-bottom:12px">🎮</div>
+      <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:8px">No quiz rooms yet</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px">Create a quiz room and share the code with your students</div>
+      <button onclick="showModal('createRoomModal')" style="padding:12px 28px;background:linear-gradient(135deg,#a855f7,#7c3aed);border:none;border-radius:12px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;color:#fff;cursor:pointer">🎮 Create First Room</button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── SCHEDULE TAB ── -->
+  <div id="tab-schedule" style="display:none">
+    <!-- Schedule a test -->
+    <div style="background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border);padding:22px;margin-bottom:20px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:16px">📅 Schedule a Test</div>
+      <form method="post" action="/teacher/schedule">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">Quiz Room</label>
+            <select name="room_id" required style="width:100%;padding:10px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none">
+              <option value="">Select a room...</option>
+              {% for r in rooms %}<option value="{{ r.id }}">{{ r.title }} ({{ r.code }})</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">Class (optional)</label>
+            <select name="class_id" style="width:100%;padding:10px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none">
+              <option value="">All students</option>
+              {% for cd in class_data %}<option value="{{ cd.cls.id }}">{{ cd.cls.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">Date & Time</label>
+            <input type="datetime-local" name="scheduled_at" required style="width:100%;padding:10px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">Note (optional)</label>
+            <input type="text" name="note" placeholder="e.g. Chapter 3 test" style="width:100%;padding:10px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none;box-sizing:border-box">
+          </div>
+        </div>
+        <button type="submit" style="padding:11px 28px;background:linear-gradient(135deg,#FFD84D,#FB8500);border:none;border-radius:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:#1a1a2e;cursor:pointer">📅 Schedule Test</button>
+      </form>
+    </div>
+
+    <!-- Scheduled list -->
+    {% if schedules %}
+    <div style="background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border);overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--item-border);font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:var(--text-primary)">Upcoming Tests</div>
+      {% for s in schedules %}
+      <div style="padding:14px 20px;border-bottom:1px solid var(--item-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-weight:700;color:var(--text-primary)">🎮 {{ s.room_title }}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px">
+            📅 {{ s.scheduled_at[:16] }}
+            {% if s.class_name %} · 🏫 {{ s.class_name }}{% endif %}
+            {% if s.note %} · 📝 {{ s.note }}{% endif %}
+          </div>
+        </div>
+        <form method="post" action="/teacher/schedule/delete/{{ s.id }}" onsubmit="return confirm('Remove this schedule?')">
+          <button type="submit" style="padding:6px 14px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;font-size:12px;font-weight:700;color:#ef4444;cursor:pointer">Remove</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:40px;background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border);color:var(--text-muted)">
+      <div style="font-size:36px;margin-bottom:10px">📅</div>No scheduled tests yet
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── ANTI-CHEAT TAB ── -->
+  <div id="tab-anticheat" style="display:none">
+    <div style="background:rgba(239,68,68,.05);border:1.5px solid rgba(239,68,68,.2);border-radius:var(--radius);padding:16px 20px;margin-bottom:16px;font-size:13px;color:var(--text-muted)">
+      🔍 <strong style="color:var(--text-primary)">Anti-Cheat Monitor</strong> — Shows tab switches detected during your quiz rooms. High tab switching may indicate students are looking up answers.
+    </div>
+    {% if rooms %}
+      {% for room in rooms %}
+      {% set rr = room_results.get(room.id, []) %}
+      {% if rr %}
+      <div style="background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border);margin-bottom:14px;overflow:hidden">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--item-border);font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:var(--text-primary)">🎮 {{ room.title }} <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:6px">Code: {{ room.code }}</span></div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <tr style="color:var(--text-muted);border-bottom:1px solid var(--item-border)">
+              <th style="text-align:left;padding:10px 16px">Student</th>
+              <th style="text-align:center;padding:10px 12px">Score</th>
+              <th style="text-align:center;padding:10px 12px">Time</th>
+              <th style="text-align:center;padding:10px 12px">Status</th>
+            </tr>
+            {% for r in rr %}
+            <tr style="border-bottom:1px solid var(--item-border)" onmouseover="this.style.background='var(--item-bg)'" onmouseout="this.style.background=''">
+              <td style="padding:10px 16px;color:var(--text-primary);font-weight:600">{{ r.avatar or '🐝' }} {{ r.username }}</td>
+              <td style="padding:10px 12px;text-align:center;font-weight:700;color:{% if r.pct>=80 %}#22c55e{% elif r.pct>=60 %}var(--honey){% else %}#ef4444{% endif %}">{{ r.pct }}%</td>
+              <td style="padding:10px 12px;text-align:center;color:var(--text-muted)">{{ r.time_taken }}s</td>
+              <td style="padding:10px 12px;text-align:center">
+                <span style="font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25)">✅ Submitted</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:40px;background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--stat-border);color:var(--text-muted)">
+      <div style="font-size:36px;margin-bottom:10px">🔍</div>Create quiz rooms to see anti-cheat data
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+</div>
+
+<!-- Create Class Modal -->
+<div id="createClassModal" class="t-modal-bg" onclick="if(event.target===this)hideModal('createClassModal')">
+  <div class="t-modal-box">
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:800;color:var(--text-primary);margin-bottom:18px">🏫 Create New Class</h2>
+    <form method="post" action="/teacher/class/create">
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">Class Name</label>
+        <input type="text" name="name" placeholder="e.g. BCA 3rd Semester" required autofocus class="t-input">
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:18px">A unique 6-character join code will be generated automatically.</div>
+      <div style="display:flex;gap:10px">
+        <button type="button" onclick="hideModal('createClassModal')" class="t-btn-sec">Cancel</button>
+        <button type="submit" class="t-btn-pri">Create Class 🐝</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Create Quiz Room Modal -->
+<div id="createRoomModal" class="t-modal-bg" onclick="if(event.target===this)hideModal('createRoomModal')">
+  <div class="t-modal-box">
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:800;color:var(--text-primary);margin-bottom:18px">🎮 Create Quiz Room</h2>
+    <form method="post" action="/teacher/room/create" enctype="multipart/form-data">
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">Room Title</label>
+        <input type="text" name="room_title" placeholder="e.g. Chapter 5 Test" required class="t-input">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">Time per Question (seconds)</label>
+        <input type="number" name="time_limit" value="30" min="10" max="120" class="t-input">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">Questions CSV</label>
+        <input type="file" name="room_csv" accept=".csv" required style="width:100%;padding:10px;border:1.5px dashed rgba(168,85,247,.4);border-radius:10px;background:rgba(168,85,247,.05);color:var(--text-primary);font-size:13px;box-sizing:border-box">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:5px">CSV: question, opt0 (correct), opt1, opt2, opt3</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button type="button" onclick="hideModal('createRoomModal')" class="t-btn-sec">Cancel</button>
+        <button type="submit" style="flex:2;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer">Create Room 🎮</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.t-tab{flex:1;padding:9px 14px;border:none;background:none;border-radius:10px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:var(--text-muted);cursor:pointer;transition:.2s;white-space:nowrap}
+.t-tab.active{background:rgba(255,183,3,.2);color:var(--honey);box-shadow:0 2px 8px rgba(0,0,0,.15);border:1px solid rgba(255,183,3,.3)}
+.t-tab:hover:not(.active){color:var(--text-primary)}
+.t-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.t-modal-bg.open{display:flex}
+.t-modal-box{background:var(--card-bg);border-radius:20px;padding:28px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.4)}
+.t-input{width:100%;padding:11px 14px;border:1.5px solid var(--stat-border);border-radius:10px;background:var(--input-bg);color:var(--text-primary);font-family:'Nunito',sans-serif;font-size:14px;outline:none;box-sizing:border-box;transition:.2s}
+.t-input:focus{border-color:var(--honey)}
+.t-btn-sec{flex:1;padding:12px;border:1.5px solid var(--stat-border);border-radius:12px;background:none;color:var(--text-muted);font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
+.t-btn-pri{flex:2;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer}
+</style>
+
+<script>
+function switchTab(name){
+  document.querySelectorAll('.t-tab').forEach(b=>b.classList.remove('active'));
+  ['classes','rooms','schedule','anticheat'].forEach(t=>{
+    document.getElementById('tab-'+t).style.display = t===name?'block':'none';
+  });
+  event.target.classList.add('active');
+}
+function showModal(id){ document.getElementById(id).style.display='flex'; }
+function hideModal(id){ document.getElementById(id).style.display='none'; }
+</script>
+{% endblock %}

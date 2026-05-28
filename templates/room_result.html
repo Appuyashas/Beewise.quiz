@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Room Result{% endblock %}
+{% block head %}
+<style>
+.rr-wrap{max-width:600px;margin:0 auto;padding:60px 20px 100px;text-align:center}
+.rr-icon{font-size:72px;display:block;margin-bottom:12px;animation:bob 1.5s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.rr-room{font-size:13px;font-weight:700;color:rgba(255,255,255,.35);
+  text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.rr-pct{font-family:'Space Grotesk',sans-serif;font-size:80px;font-weight:800;
+  background:linear-gradient(135deg,#34d399,#059669);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1}
+.rr-msg{font-size:18px;font-weight:700;color:rgba(255,255,255,.65);margin:8px 0 24px}
+.submitted-badge{display:inline-block;padding:6px 18px;border-radius:20px;
+  background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);
+  color:#34d399;font-size:13px;font-weight:700;margin-bottom:28px}
+.stats{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-bottom:32px}
+.sc{background:rgba(255,255,255,.06);border:1px solid rgba(52,211,153,.2);
+  border-radius:16px;padding:16px 24px;min-width:100px}
+.sc .v{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#34d399}
+.sc .l{font-size:11px;color:rgba(255,255,255,.4);font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn-g{padding:13px 28px;border:none;border-radius:40px;
+  background:linear-gradient(135deg,#34d399,#059669);
+  color:#fff;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;
+  text-decoration:none;cursor:pointer;transition:.25s}
+.btn-g:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(52,211,153,.4)}
+.btn-ghost{padding:12px 24px;border:1.5px solid rgba(255,255,255,.15);border-radius:40px;
+  background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);
+  font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;text-decoration:none;transition:.2s}
+.btn-ghost:hover{background:rgba(255,255,255,.1)}
+body.bee-mode .rr-room{color:#7a5a00 !important}
+body.bee-mode .rr-msg{color:#5a4a00 !important}
+body.bee-mode .sc{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .sc .v{color:#c05000 !important}
+body.bee-mode .sc .l{color:#7a5a00 !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="rr-wrap">
+  <span class="rr-icon">
+    {% if pct == 100 %}&#127881;
+    {% elif pct >= 80 %}&#127942;
+    {% elif pct >= 60 %}&#128522;
+    {% else %}&#128170;{% endif %}
+  </span>
+  <div class="rr-room">&#127918; {{ title }}</div>
+  <div class="rr-pct">{{ pct }}%</div>
+  <div class="rr-msg">
+    {% if pct == 100 %}Perfect Score! Outstanding!
+    {% elif pct >= 80 %}Excellent work!
+    {% elif pct >= 60 %}Good effort! Keep going!
+    {% elif pct >= 40 %}Not bad — keep practising!
+    {% else %}Keep studying — you'll get there!{% endif %}
+  </div>
+  <div class="submitted-badge">&#x2705; Result submitted to teacher</div>
+  <div class="stats">
+    <div class="sc"><div class="v">{{ score }}</div><div class="l">Correct</div></div>
+    <div class="sc"><div class="v">{{ total - score }}</div><div class="l">Wrong</div></div>
+    <div class="sc"><div class="v">{{ total }}</div><div class="l">Total</div></div>
+    <div class="sc">
+      <div class="v">{{ '%d:%02d'|format(time_taken//60,time_taken%60) }}</div>
+      <div class="l">Time</div>
+    </div>
+  </div>
+  <div class="btns">
+    <a href="/room" class="btn-g">Join Another Room</a>
+    <a href="/mode" class="btn-ghost">Back to Modes</a>
+    <a href="/dashboard" class="btn-ghost">Dashboard</a>
+  </div>
+</div>
+{% endblock %}

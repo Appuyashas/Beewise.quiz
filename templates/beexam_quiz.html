@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}BeeXam – {{ paper.exam_name }} {{ paper.year }}{% endblock %}
+{% block head %}
+<style>
+.bx-wrap{max-width:680px;margin:0 auto;padding:24px 16px 80px}
+.bx-header{background:linear-gradient(135deg,#1a1a2e,#2d1a4e);border:1.5px solid rgba(168,85,247,.3);border-radius:20px;padding:18px 22px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.bx-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;color:#c084fc}
+.bx-sub{font-size:12px;color:rgba(255,255,255,.4);margin-top:2px}
+.bx-timer{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:#fff;background:rgba(168,85,247,.2);border:1.5px solid rgba(168,85,247,.4);padding:8px 18px;border-radius:30px}
+.bx-timer.warning{color:#fb923c;border-color:rgba(251,146,60,.5);background:rgba(251,146,60,.1)}
+.bx-timer.danger{color:#f87171;border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.1);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.bx-progress{height:5px;background:rgba(255,255,255,.08);border-radius:30px;margin-bottom:22px;overflow:hidden}
+.bx-progress-bar{height:100%;background:linear-gradient(90deg,#a855f7,#c084fc);border-radius:30px;transition:.3s}
+.bx-qnum{font-size:12px;font-weight:700;color:rgba(168,85,247,.8);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.bx-question{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#fff;line-height:1.5;margin-bottom:22px}
+.bx-options{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
+.bx-opt{display:flex;align-items:center;gap:14px;padding:16px 20px;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:14px;cursor:pointer;transition:.2s;width:100%}
+.bx-opt:hover{background:rgba(168,85,247,.12);border-color:rgba(168,85,247,.4);transform:translateX(4px)}
+.bx-opt.selected{background:rgba(168,85,247,.2);border-color:#a855f7}
+.bx-opt-label{width:30px;height:30px;border-radius:50%;background:rgba(168,85,247,.15);border:1.5px solid rgba(168,85,247,.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#c084fc;flex-shrink:0}
+.bx-opt.selected .bx-opt-label{background:#a855f7;border-color:#a855f7;color:#fff}
+.bx-opt-text{font-size:14px;color:rgba(255,255,255,.85);font-weight:600;text-align:left}
+.bx-next{width:100%;padding:15px;background:linear-gradient(135deg,#a855f7,#7c3aed);border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:16px;font-weight:800;color:#fff;cursor:pointer;transition:.2s}
+.bx-next:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(168,85,247,.4)}
+.bx-next:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.bx-subject-badge{display:inline-block;padding:3px 10px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.3);border-radius:20px;font-size:11px;font-weight:700;color:#c084fc;margin-bottom:14px}
+body.bee-mode .bx-header{background:#fff !important;border-color:#ffd84d !important}
+body.bee-mode .bx-title{color:#7c3aed !important}
+body.bee-mode .bx-sub{color:#7a5a00 !important}
+body.bee-mode .bx-timer{color:#1a1a2e !important;background:#fff3b0 !important;border-color:#ffd84d !important}
+body.bee-mode .bx-question{color:#1a1a2e !important}
+body.bee-mode .bx-opt{background:#fff !important;border-color:#e2e8f0 !important}
+body.bee-mode .bx-opt:hover{background:#f3e8ff !important;border-color:#a855f7 !important}
+body.bee-mode .bx-opt.selected{background:#f3e8ff !important;border-color:#a855f7 !important}
+body.bee-mode .bx-opt-text{color:#1a1a2e !important}
+body.bee-mode .bx-subject-badge{color:#7c3aed !important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="bx-wrap">
+  <div class="bx-header">
+    <div>
+      <div class="bx-title">🎓 {{ paper.exam_name }} — {{ paper.year }}</div>
+      <div class="bx-sub">{{ paper.subject }} · Question {{ num }} of {{ total }}</div>
+    </div>
+    <div class="bx-timer" id="timer">--:--</div>
+  </div>
+
+  <div class="bx-progress">
+    <div class="bx-progress-bar" style="width:{{ (num/total*100)|round }}%"></div>
+  </div>
+
+  <div class="bx-qnum">Question {{ num }} / {{ total }}</div>
+  {% if q.cat %}<div class="bx-subject-badge">{{ q.cat }}</div>{% endif %}
+  <div class="bx-question">{{ q.q }}</div>
+
+  <form method="post" action="/beexam/quiz" id="qform">
+    <div class="bx-options">
+      {% set labels = ['A','B','C','D'] %}
+      {% for opt in q.options %}
+      <label class="bx-opt" id="opt{{ loop.index0 }}">
+        <input type="radio" name="answer" value="{{ loop.index0 }}" style="display:none" onchange="selectOpt({{ loop.index0 }})">
+        <div class="bx-opt-label">{{ labels[loop.index0] }}</div>
+        <div class="bx-opt-text">{{ opt }}</div>
+      </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="bx-next" id="nextBtn" disabled>
+      {% if num == total %}🏁 Finish Exam{% else %}Next Question →{% endif %}
+    </button>
+  </form>
+</div>
+
+<script>
+// Timer
+let timeLeft = {{ left }};
+const timerEl = document.getElementById('timer');
+function fmt(s){ return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+timerEl.textContent = fmt(timeLeft);
+const tick = setInterval(()=>{
+  timeLeft--;
+  timerEl.textContent = fmt(timeLeft);
+  const pct = timeLeft / {{ total_time }};
+  if(pct < 0.1){ timerEl.className='bx-timer danger'; }
+  else if(pct < 0.25){ timerEl.className='bx-timer warning'; }
+  if(timeLeft <= 0){ clearInterval(tick); document.getElementById('qform').submit(); }
+},1000);
+
+// Option selection
+function selectOpt(i){
+  document.querySelectorAll('.bx-opt').forEach(e=>e.classList.remove('selected'));
+  document.getElementById('opt'+i).classList.add('selected');
+  document.getElementById('nextBtn').disabled = false;
+}
+</script>
+{% endblock %}

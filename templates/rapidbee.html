@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – RapidBee ⚡{% endblock %}
+{% block head %}
+<style>
+*{box-sizing:border-box}
+.rb-wrap{max-width:620px;margin:0 auto;padding:22px 18px 160px}
+
+/* Top bar */
+.rb-topbar{background:#fff;padding:12px 20px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.rb-left{font-weight:800;color:#1a1a2e;font-size:15px}
+.rb-right{display:flex;align-items:center;gap:10px}
+.timer-pill{background:#1a1a2e;color:#FFD84D;padding:7px 16px;border-radius:30px;font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;min-width:68px;text-align:center;transition:.3s}
+.timer-pill.low{background:#ef4444;color:#fff;animation:tpulse .5s infinite}
+@keyframes tpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.exit-link{color:#9ca3af;font-size:13px;font-weight:700;text-decoration:none;transition:.2s}
+.exit-link:hover{color:#ef4444}
+
+/* Overall progress */
+.progress-bar{height:6px;background:rgba(255,255,255,.15);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.progress-fill{height:100%;background:linear-gradient(90deg,#FFD84D,#FB8500);border-radius:10px;transition:.4s}
+
+/* Per-question timer bar */
+.q-timer-wrap{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.q-timer-bar{flex:1;height:8px;background:rgba(255,255,255,.12);border-radius:10px;overflow:hidden}
+.q-timer-fill{height:100%;background:linear-gradient(90deg,#10b981,#FFD84D);border-radius:10px;transition:width .9s linear}
+.q-timer-fill.mid{background:linear-gradient(90deg,#fbbf24,#FB8500)}
+.q-timer-fill.low{background:linear-gradient(90deg,#f87171,#ef4444)}
+.q-timer-num{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,.6);min-width:28px;text-align:right}
+
+/* Question card */
+.rb-card{background:#fff;border-radius:22px;padding:26px 24px;box-shadow:0 16px 40px rgba(0,0,0,.18)}
+.q-cat-badge{display:inline-block;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:800;background:rgba(255,183,3,.15);color:#FB8500;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.q-counter{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:8px}
+.q-text{font-size:19px;font-weight:800;color:#1a1a2e;margin-bottom:20px;line-height:1.4}
+
+/* Options */
+.rb-option{display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:14px;background:#fafafa;border:2px solid #f3f4f6;cursor:pointer;transition:.2s;margin-bottom:10px;user-select:none}
+.rb-option:hover:not(.locked){background:#fff7e0;border-color:#FB8500;transform:translateX(4px)}
+.rb-option.selected{background:#FB8500 !important;border-color:#c05000 !important;transform:translateX(4px)}
+.rb-option.selected .opt-letter{background:#1a1a2e !important;color:#FFD84D !important;border-color:#1a1a2e !important}
+.rb-option.selected .opt-text{color:#fff !important;font-weight:700 !important}
+.rb-option.selected *{color:#fff !important}
+.rb-option.selected .opt-letter{color:#FFD84D !important}
+.rb-option.correct{background:#d1fae5 !important;border-color:#10b981 !important;transform:none !important}
+.rb-option.wrong{background:#fee2e2 !important;border-color:#ef4444 !important;transform:none !important}
+.rb-option.locked{cursor:default}
+input[type="radio"]{display:none}
+.opt-letter{width:30px;height:30px;border-radius:9px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:#6b7280;flex-shrink:0;transition:.2s}
+.rb-option.selected .opt-letter{background:#FB8500;color:#fff}
+.rb-option.correct .opt-letter{background:#10b981;color:#fff}
+.rb-option.wrong .opt-letter{background:#ef4444;color:#fff}
+.opt-text{font-size:15px;font-weight:600;color:#374151;flex:1}
+.opt-icon{font-size:18px;margin-left:auto;flex-shrink:0}
+
+/* Check button */
+.check-btn{width:100%;padding:15px;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:17px;font-weight:800;cursor:pointer;margin-top:6px;background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;box-shadow:0 6px 20px rgba(251,133,0,.35);transition:.25s}
+.check-btn:disabled{background:#e5e7eb;color:#9ca3af;box-shadow:none;cursor:not-allowed;transform:none}
+.check-btn:not(:disabled):hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(251,133,0,.45)}
+
+/* ── FEEDBACK PANEL (Duolingo style) ── */
+.feedback-panel{
+  position:fixed;bottom:0;left:0;right:0;
+  padding:20px 24px 28px;
+  transform:translateY(100%);
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+  z-index:100;
+  border-radius:24px 24px 0 0;
+  box-shadow:0 -8px 40px rgba(0,0,0,.25);
+}
+.feedback-panel.show{transform:translateY(0)}
+.feedback-panel.correct{background:linear-gradient(135deg,#d1fae5,#a7f3d0)}
+.feedback-panel.wrong{background:linear-gradient(135deg,#fee2e2,#fecaca)}
+.feedback-panel.timeout{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+
+.feedback-inner{max-width:620px;margin:0 auto;display:flex;align-items:center;gap:16px}
+.bee-char{width:160px;height:160px;flex-shrink:0;transition:opacity .3s;position:relative;background:none}
+.bee-char img{width:160px;height:160px;object-fit:contain;position:absolute;top:0;left:0;
+  transition:opacity .4s ease;opacity:0;
+  filter:drop-shadow(0 8px 24px rgba(0,0,0,.25));
+  background:transparent;mix-blend-mode:normal}
+.bee-char img.active{opacity:1}
+.bee-char.happy img.active{animation:beeHappy .6s ease infinite alternate}
+.bee-char.sad img.active{animation:beeSad .4s ease infinite alternate}
+.bee-char.timeout-anim img.active{animation:beeTimeout .5s ease infinite alternate}
+@keyframes beeHappy{0%{transform:translateY(0) rotate(-5deg)}100%{transform:translateY(-10px) rotate(5deg)}}
+@keyframes beeSad{0%{transform:translateX(-3px) rotate(-5deg)}100%{transform:translateX(3px) rotate(5deg)}}
+@keyframes beeTimeout{0%{transform:scale(1)}100%{transform:scale(1.1)}}
+
+.feedback-text-wrap{flex:1}
+.feedback-label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.feedback-panel.correct .feedback-label{color:#065f46}
+.feedback-panel.wrong .feedback-label{color:#991b1b}
+.feedback-panel.timeout .feedback-label{color:#92400e}
+.feedback-msg{font-size:18px;font-weight:800;color:#1a1a2e;margin-bottom:4px}
+.feedback-correct-ans{font-size:13px;font-weight:600;color:#374151;margin-top:4px}
+.feedback-correct-ans strong{color:#1a1a2e}
+
+.continue-btn{
+  padding:13px 28px;border:none;border-radius:30px;
+  font-family:'Nunito',sans-serif;font-size:16px;font-weight:800;
+  cursor:pointer;flex-shrink:0;transition:.2s;
+  white-space:nowrap;
+}
+.feedback-panel.correct .continue-btn{background:#10b981;color:#fff;box-shadow:0 4px 14px rgba(16,185,129,.4)}
+.feedback-panel.wrong .continue-btn{background:#ef4444;color:#fff;box-shadow:0 4px 14px rgba(239,68,68,.4)}
+.feedback-panel.timeout .continue-btn{background:#FB8500;color:#fff;box-shadow:0 4px 14px rgba(251,133,0,.4)}
+.continue-btn:hover{transform:translateY(-2px)}
+
+/* Sound toggle */
+.sound-btn{background:none;border:none;cursor:pointer;font-size:18px;padding:4px;transition:.2s;opacity:.7}
+.sound-btn:hover{opacity:1;transform:scale(1.1)}
+
+/* Bee mode overrides */
+body.bee-mode .rb-card{box-shadow:0 16px 40px rgba(251,133,0,.2)}
+body.bee-mode .rb-exit,.bee-mode a[href*="mode"].exit,.bee-mode [onclick*="Exit"]{color:#c05000 !important}
+body.bee-mode .rb-option{background:#fffdf0;border-color:#fde68a}
+body.bee-mode .opt-text{color:#1a1a2e !important}
+body.bee-mode .opt-letter{background:#fde68a !important;color:#7a5a00 !important}
+body.bee-mode .rb-option.selected{background:#FFD84D !important;border-color:#FB8500 !important;transform:translateX(4px)}
+body.bee-mode .rb-option.selected .opt-text{color:#1a1a2e !important;font-weight:700 !important}
+body.bee-mode .rb-option.selected .opt-letter{background:#FB8500 !important;color:#1a1a2e !important;border-color:#FB8500 !important}
+body.bee-mode .q-text{color:#1a1a2e !important}
+body.bee-mode .rb-card{background:#fff !important}
+body.bee-mode .cat-badge{background:rgba(255,183,3,.25) !important;color:#c05000 !important}
+body.bee-mode .q-counter{color:#7a5a00 !important}
+body.bee-mode .rb-topbar{background:#fff3b0}
+
+@media(max-width:480px){
+  .rb-wrap{padding:14px 12px 150px}
+  .q-text{font-size:16px}
+  .feedback-inner{gap:10px}
+  .bee-char{width:120px;height:120px}
+  .bee-char img{width:120px;height:120px}
+  .feedback-msg{font-size:16px}
+  .continue-btn{padding:11px 20px;font-size:14px}
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="rb-wrap">
+  <div class="rb-topbar">
+    <div class="rb-left">⚡ RapidBee</div>
+    <div class="rb-right">
+      <button class="sound-btn" id="soundBtn" onclick="toggleSound()" title="Toggle sound">🔊</button>
+      <div class="timer-pill" id="timer">2:00</div>
+      <a href="/mode" class="exit-link" onclick="return confirm('Exit game? Progress will be lost.')">✕ Exit</a>
+    </div>
+  </div>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill" style="width:{{ (num/total*100)|round }}%"></div>
+  </div>
+
+  <div class="q-timer-wrap">
+    <div class="q-timer-bar">
+      <div class="q-timer-fill" id="qTimerFill"></div>
+    </div>
+    <div class="q-timer-num" id="qTimerNum">15</div>
+  </div>
+
+  <div class="rb-card">
+    <div class="q-cat-badge">{{ q.cat }}</div>
+    <div class="q-counter">Question {{ num }} of {{ total }}</div>
+    <div class="q-text">{{ q.q }}</div>
+
+    <form method="POST" id="rbForm">
+      <input type="hidden" name="tab_switches" id="tabSwitches" value="0">
+      {% set letters = ['A','B','C','D'] %}
+      {% for option in q.options %}
+      <div class="rb-option" id="opt{{ loop.index0 }}" onclick="selectOption({{ loop.index0 }}, this)">
+        <input type="radio" name="ans" value="{{ loop.index0 }}" id="radio{{ loop.index0 }}">
+        <span class="opt-letter" id="optLetter{{ loop.index0 }}">{{ letters[loop.index0] }}</span>
+        <span class="opt-text">{{ option }}</span>
+        <span class="opt-icon" id="optIcon{{ loop.index0 }}"></span>
+      </div>
+      {% endfor %}
+
+      <button type="button" class="check-btn" id="checkBtn" onclick="checkAnswer()" disabled>
+        Check Answer →
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Duolingo-style feedback panel -->
+<div class="feedback-panel" id="feedbackPanel">
+  <div class="feedback-inner">
+    <div class="bee-char" id="beeChar">
+      <img src="/static/maya_celebrate.png" id="mayaHappy" class="active" alt="Maya" style="mix-blend-mode:multiply">
+      <img src="/static/maya_sad.png"       id="mayaSad"               alt="Maya" style="mix-blend-mode:multiply">
+      <img src="/static/maya_think.png"     id="mayaThink"             alt="Maya" style="mix-blend-mode:multiply">
+    </div>
+    <div class="feedback-text-wrap">
+      <div class="feedback-label" id="feedbackLabel">CORRECT!</div>
+      <div class="feedback-msg" id="feedbackMsg">Amazing! You're on fire! 🔥</div>
+      <div class="feedback-correct-ans" id="feedbackCorrectAns"></div>
+    </div>
+    <button class="continue-btn" id="continueBtn" onclick="submitAnswer()">
+      {% if num == total %}Finish 🏁{% else %}Continue →{% endif %}
+    </button>
+  </div>
+</div>
+
+<script>
+const CORRECT   = {{ q.a }};
+const OPTIONS   = {{ q.options | tojson }};
+const Q_LIMIT   = 15;
+let timeLeft    = {{ left }};
+let qTimeLeft   = Q_LIMIT;
+let selectedAns = -1;
+let checked     = false;
+let soundOn     = localStorage.getItem('qb-sound') !== 'off';
+let tabCount    = 0;
+
+// ── Sound button UI ──
+updateSoundBtn();
+function updateSoundBtn(){
+  document.getElementById('soundBtn').textContent = soundOn ? '🔊' : '🔇';
+}
+function toggleSound(){
+  soundOn = !soundOn;
+  localStorage.setItem('qb-sound', soundOn ? 'on' : 'off');
+  updateSoundBtn();
+}
+
+// ── Overall timer ──
+function updateTimer(){
+  const m = Math.floor(timeLeft/60);
+  const s = timeLeft % 60;
+  const el = document.getElementById('timer');
+  el.textContent = m + ':' + (s<10?'0'+s:s);
+  if(timeLeft <= 10) el.classList.add('low');
+  if(timeLeft <= 0){ clearInterval(mainInt); if(!checked) checkAnswer(true); }
+  timeLeft--;
+}
+updateTimer();
+const mainInt = setInterval(updateTimer, 1000);
+
+// ── Per-question timer ──
+const qFill = document.getElementById('qTimerFill');
+const qNum  = document.getElementById('qTimerNum');
+function updateQTimer(){
+  const pct = (qTimeLeft / Q_LIMIT) * 100;
+  qFill.style.width = pct + '%';
+  qNum.textContent = qTimeLeft;
+  qFill.className = 'q-timer-fill' + (qTimeLeft<=5?' low':qTimeLeft<=10?' mid':'');
+  if(qTimeLeft <= 0){ clearInterval(qInt); if(!checked) checkAnswer(true); }
+  qTimeLeft--;
+}
+updateQTimer();
+const qInt = setInterval(updateQTimer, 1000);
+
+// ── Select option ──
+function selectOption(idx, el){
+  if(checked) return;
+  document.querySelectorAll('.rb-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('radio'+idx).checked = true;
+  selectedAns = idx;
+  document.getElementById('checkBtn').disabled = false;
+}
+
+// ── Check answer ──
+function checkAnswer(timeout=false){
+  if(checked) return;
+  checked = true;
+  clearInterval(qInt);
+
+  // Lock all options
+  document.querySelectorAll('.rb-option').forEach(o => {
+    o.classList.add('locked');
+    o.style.cursor = 'default';
+  });
+  document.getElementById('checkBtn').style.display = 'none';
+
+  const isCorrect = !timeout && selectedAns === CORRECT;
+
+  // Reveal correct answer
+  document.getElementById('opt'+CORRECT).classList.add('correct');
+  document.getElementById('optIcon'+CORRECT).textContent = '✅';
+
+  if(!isCorrect && selectedAns >= 0){
+    document.getElementById('opt'+selectedAns).classList.add('wrong');
+    document.getElementById('optIcon'+selectedAns).textContent = '❌';
+  }
+
+  // Show feedback panel
+  showFeedback(isCorrect, timeout);
+  playSound(isCorrect ? 'correct' : 'wrong');
+}
+
+// ── Feedback panel ──
+const correctMsgs = [
+  'Excellent! 🔥','Amazing! ⭐','You got it! 🎉',
+  'Perfect! 🏅','Brilliant! ✨','On fire! 🔥','Superb! 🌟'
+];
+const wrongMsgs = [
+  "Oops! Not quite...",'Almost! Keep going!',
+  "Don't give up! 💪","Nice try, keep buzzing!","You'll get the next one!"
+];
+
+function showFeedback(correct, timeout){
+  const panel   = document.getElementById('feedbackPanel');
+  const bee     = document.getElementById('beeChar');
+  const label   = document.getElementById('feedbackLabel');
+  const msg     = document.getElementById('feedbackMsg');
+  const corrAns = document.getElementById('feedbackCorrectAns');
+
+  if(timeout){
+    panel.className = 'feedback-panel timeout show';
+    bee.textContent  = '⏰';
+    bee.className    = 'bee-char timeout-anim';
+    mayaSwap('think');
+    label.textContent = "TIME'S UP!";
+    msg.textContent   = "Too slow this time!";
+    corrAns.innerHTML = '<strong>Correct answer:</strong> ' + OPTIONS[CORRECT];
+  } else if(correct){
+    panel.className  = 'feedback-panel correct show';
+    bee.className    = 'bee-char happy';
+    mayaSwap('happy');
+    label.textContent = 'CORRECT!';
+    msg.textContent   = correctMsgs[Math.floor(Math.random()*correctMsgs.length)];
+    corrAns.textContent = '';
+    spawnStars();
+  } else {
+    panel.className  = 'feedback-panel wrong show';
+    bee.className    = 'bee-char sad';
+    mayaSwap('sad');
+    label.textContent = 'INCORRECT';
+    msg.textContent   = wrongMsgs[Math.floor(Math.random()*wrongMsgs.length)];
+    corrAns.innerHTML = '<strong>Correct answer:</strong> ' + OPTIONS[CORRECT];
+  }
+}
+
+// ── Spawn stars on correct ──
+function spawnStars(){
+  const stars = ['⭐','🌟','✨','💫'];
+  for(let i=0;i<5;i++){
+    const s = document.createElement('div');
+    s.textContent = stars[Math.floor(Math.random()*stars.length)];
+    s.style.cssText = `position:fixed;pointer-events:none;z-index:999;font-size:${18+Math.random()*16}px;
+      left:${20+Math.random()*60}%;bottom:${100+Math.random()*100}px;
+      animation:starFly .8s ease forwards;animation-delay:${Math.random()*0.3}s`;
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(), 1200);
+  }
+}
+
+// ── Submit to server ──
+function submitAnswer(){
+  clearInterval(mainInt);
+  document.getElementById('rbForm').submit();
+}
+
+// ── Tab detection ──
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){ tabCount++; document.getElementById('tabSwitches').value = tabCount; }
+});
+
+// ── Sound (Web Audio API) ──
+function playSound(type){
+  if(!soundOn) return;
+  try{
+    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    if(type==='correct'){
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523, ctx.currentTime);
+      osc.frequency.setValueAtTime(659, ctx.currentTime+0.12);
+      osc.frequency.setValueAtTime(784, ctx.currentTime+0.24);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.6);
+      osc.start(); osc.stop(ctx.currentTime+0.6);
+    } else {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(280, ctx.currentTime);
+      osc.frequency.setValueAtTime(180, ctx.currentTime+0.18);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.4);
+      osc.start(); osc.stop(ctx.currentTime+0.4);
+    }
+  } catch(e){}
+}
+
+function mayaSwap(pose) {
+  var imgs = document.querySelectorAll('.bee-char img');
+  imgs.forEach(function(img){ img.classList.remove('active'); });
+  if(pose === 'happy')  document.getElementById('mayaHappy').classList.add('active');
+  else if(pose === 'sad') document.getElementById('mayaSad').classList.add('active');
+  else document.getElementById('mayaThink').classList.add('active');
+}
+</script>
+
+<style>
+@keyframes starFly{
+  0%{transform:translateY(0) scale(1);opacity:1}
+  100%{transform:translateY(-120px) scale(0.5);opacity:0}
+}
+</style>
+{% endblock %}
