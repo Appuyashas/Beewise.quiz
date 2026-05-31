@@ -406,6 +406,24 @@ def init_db():
                 played_at    TEXT DEFAULT (datetime('now')),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
+            CREATE TABLE IF NOT EXISTS jigsaw_levels (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                title       TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                image_path  TEXT NOT NULL,
+                grid_size   INTEGER DEFAULT 4,
+                order_num   INTEGER DEFAULT 0,
+                created     TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS jigsaw_progress (
+                user_id     INTEGER NOT NULL,
+                level_id    INTEGER NOT NULL,
+                completed   INTEGER DEFAULT 0,
+                best_time   INTEGER DEFAULT 0,
+                stars       INTEGER DEFAULT 0,
+                completed_at TEXT,
+                PRIMARY KEY(user_id, level_id)
+            );
             CREATE TABLE IF NOT EXISTS rb_temp (
                 user_id        INTEGER PRIMARY KEY,
                 questions_json TEXT NOT NULL,
@@ -1477,6 +1495,10 @@ def admin():
         count_map[p["exam_name"]] = count_map.get(p["exam_name"], 0) + 1
     beexam_exam_types = [{"name": et["name"], "group": et["exam_group"],
                           "paper_count": count_map.get(et["name"], 0)} for et in beexam_exam_types_raw]
+    with get_db() as conn:
+        jigsaw_levels = conn.execute(
+            "SELECT * FROM jigsaw_levels ORDER BY order_num ASC"
+        ).fetchall()
     return render_template("admin.html", students=students, hardest=hardest,
                            flagged=flagged, recent_results=recent_results,
                            total_games=total_games, total_users=total_users,
@@ -1486,6 +1508,7 @@ def admin():
                            quiz_rooms=quiz_rooms,
                            beexam_papers=beexam_papers,
                            beexam_exam_types=beexam_exam_types,
+                           jigsaw_levels=jigsaw_levels,
                            categories=["HTML","CSS","Python","SQL","Flask","General"])
 
 @app.route("/admin/student/<int:uid>")
@@ -2309,7 +2332,163 @@ def game_scramble():
 @app.route("/games/jigsaw")
 @require_login
 def game_jigsaw():
-    return render_template("game_jigsaw.html")
+    uid = session["user_id"]
+    with get_db() as conn:
+        levels = conn.execute(
+            "SELECT * FROM jigsaw_levels ORDER BY order_num ASC"
+        ).fetchall()
+        progress = {
+            row["level_id"]: dict(row)
+            for row in conn.execute(
+                "SELECT * FROM jigsaw_progress WHERE user_id=?", (uid,)
+            ).fetchall()
+        }
+    # Pre-compute locked status in Python — cleaner than complex Jinja
+    levels_data = []
+    for i, lv in enumerate(levels):
+        prog = progress.get(lv["id"])
+        if lv["order_num"] == 0:
+            locked = False
+        else:
+            # Find the level with order_num one less
+            prev = next((l for l in levels if l["order_num"] == lv["order_num"]-1), None)
+            locked = not (prev and progress.get(prev["id"], {}).get("completed", 0))
+        levels_data.append({
+            "id":          lv["id"],
+            "title":       lv["title"],
+            "description": lv["description"],
+            "image_path":  lv["image_path"],
+            "grid_size":   lv["grid_size"],
+            "order_num":   lv["order_num"],
+            "locked":      locked,
+            "completed":   prog["completed"] if prog else 0,
+            "stars":       prog["stars"]     if prog else 0,
+            "best_time":   prog["best_time"] if prog else 0,
+        })
+    return render_template("game_jigsaw.html", levels=levels_data)
+
+
+@app.route("/games/jigsaw/<int:level_id>")
+@require_login
+def game_jigsaw_play(level_id):
+    uid = session["user_id"]
+    with get_db() as conn:
+        level = conn.execute(
+            "SELECT * FROM jigsaw_levels WHERE id=?", (level_id,)
+        ).fetchone()
+        if not level:
+            flash("Level not found.", "error")
+            return redirect("/games/jigsaw")
+        # Check level is unlocked (first level always unlocked,
+        # others need previous level completed)
+        if level["order_num"] > 0:
+            prev = conn.execute(
+                "SELECT id FROM jigsaw_levels WHERE order_num=? ORDER BY order_num",
+                (level["order_num"]-1,)
+            ).fetchone()
+            if prev:
+                prog = conn.execute(
+                    "SELECT completed FROM jigsaw_progress WHERE user_id=? AND level_id=?",
+                    (uid, prev["id"])
+                ).fetchone()
+                if not prog or not prog["completed"]:
+                    flash("Complete the previous level first! 🔒", "error")
+                    return redirect("/games/jigsaw")
+        progress = conn.execute(
+            "SELECT * FROM jigsaw_progress WHERE user_id=? AND level_id=?",
+            (uid, level_id)
+        ).fetchone()
+    return render_template("game_jigsaw_play.html",
+                           level=level, progress=progress)
+
+
+@app.route("/games/jigsaw/complete", methods=["POST"])
+@require_login
+def game_jigsaw_complete():
+    import json as _j
+    uid      = session["user_id"]
+    level_id = request.json.get("level_id")
+    time_s   = request.json.get("time", 0)
+    stars    = request.json.get("stars", 1)
+    if not level_id:
+        return {"ok": False}, 400
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT best_time, stars FROM jigsaw_progress WHERE user_id=? AND level_id=?",
+            (uid, level_id)
+        ).fetchone()
+        if existing:
+            best = min(existing["best_time"], time_s) if existing["best_time"] > 0 else time_s
+            best_stars = max(existing["stars"], stars)
+            conn.execute("""UPDATE jigsaw_progress
+                SET completed=1, best_time=?, stars=?, completed_at=datetime('now')
+                WHERE user_id=? AND level_id=?""",
+                (best, best_stars, uid, level_id))
+        else:
+            conn.execute("""INSERT INTO jigsaw_progress
+                (user_id, level_id, completed, best_time, stars, completed_at)
+                VALUES (?,?,1,?,?,datetime('now'))""",
+                (uid, level_id, time_s, stars))
+    # Check achievements
+    with get_db() as conn:
+        total_done = conn.execute(
+            "SELECT COUNT(*) FROM jigsaw_progress WHERE user_id=? AND completed=1", (uid,)
+        ).fetchone()[0]
+    achs = ["first_jigsaw"]
+    if stars == 3:        achs.append("secret_jigsaw_fast")
+    if total_done >= 5:   achs.append("jigsaw_hard")
+    awarded = []
+    with get_db() as conn:
+        existing_achs = {r[0] for r in conn.execute(
+            "SELECT ach_id FROM achievements WHERE user_id=?", (uid,))}
+        for ach_id in achs:
+            if ach_id in ACH_MAP and ach_id not in existing_achs:
+                conn.execute("INSERT INTO achievements (user_id,ach_id) VALUES (?,?)",
+                             (uid, ach_id))
+                awarded.append(ACH_MAP[ach_id])
+    return {"ok": True, "awarded": awarded}
+
+
+# ── Jigsaw Admin ───────────────────────────────────────────────────
+@app.route("/admin/jigsaw/upload", methods=["POST"])
+@require_login
+@require_admin
+def admin_jigsaw_upload():
+    import os as _os
+    title    = request.form.get("title","").strip()
+    desc     = request.form.get("description","").strip()
+    grid     = request.form.get("grid_size", type=int, default=4)
+    order    = request.form.get("order_num", type=int, default=0)
+    img_file = request.files.get("image")
+    if not title or not img_file:
+        flash("Title and image are required.", "error")
+        return redirect("/admin?tab=jigsaw")
+    # Save image
+    ext = img_file.filename.rsplit(".",1)[-1].lower()
+    if ext not in ("jpg","jpeg","png","webp","gif"):
+        flash("Only JPG, PNG, WebP images allowed.", "error")
+        return redirect("/admin?tab=jigsaw")
+    import uuid as _uuid
+    fname = f"jigsaw_{_uuid.uuid4().hex[:8]}.{ext}"
+    img_file.save(f"static/{fname}")
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO jigsaw_levels (title,description,image_path,grid_size,order_num) VALUES (?,?,?,?,?)",
+            (title, desc, fname, grid, order)
+        )
+    flash(f"✅ Level '{title}' added!", "success")
+    return redirect("/admin?tab=jigsaw")
+
+
+@app.route("/admin/jigsaw/delete/<int:lid>", methods=["POST"])
+@require_login
+@require_admin
+def admin_jigsaw_delete(lid):
+    with get_db() as conn:
+        conn.execute("DELETE FROM jigsaw_levels WHERE id=?", (lid,))
+        conn.execute("DELETE FROM jigsaw_progress WHERE level_id=?", (lid,))
+    flash("Level deleted.", "success")
+    return redirect("/admin?tab=jigsaw")
 
 @app.route("/games/chess")
 @require_login

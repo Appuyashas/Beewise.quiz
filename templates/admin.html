@@ -224,6 +224,7 @@ document.getElementById('editModal').addEventListener('click', function(e){
     <button class="a-tab" onclick="switchAdmin('exams')">🎓 Exams</button>
     <button class="a-tab" onclick="switchAdmin('classes')">🏫 Classes</button>
     <button class="a-tab" onclick="switchAdmin('rooms')">🎮 Quiz Rooms</button>
+    <button class="a-tab" onclick="switchAdmin('jigsaw')">🧩 Jigsaw Levels</button>
     <button class="a-tab" onclick="switchAdmin('promote')">👩‍🏫 Promote Users</button>
     <button class="a-tab" onclick="switchAdmin('beexam')">🎓 BeeXam</button>
     <button class="a-tab" onclick="switchAdmin('ai')">🤖 AI Generator</button>
@@ -726,6 +727,61 @@ document.getElementById('editModal').addEventListener('click', function(e){
   </div>
 
   <!-- AI QUESTION GENERATOR PANEL -->
+  <!-- ── JIGSAW LEVELS PANEL ── -->
+  <div class="a-panel" id="panel-jigsaw">
+    <div style="background:rgba(99,102,241,.07);border:1.5px solid rgba(99,102,241,.25);border-radius:18px;padding:22px;margin-bottom:24px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:16px">➕ Add New Jigsaw Level</div>
+      <form method="post" action="/admin/jigsaw/upload" enctype="multipart/form-data">
+        <div class="form-grid">
+          <div class="f-field"><label>Level Title</label><input type="text" name="title" placeholder="e.g. Sunny Beach" required></div>
+          <div class="f-field"><label>Description (optional)</label><input type="text" name="description" placeholder="e.g. A relaxing beach scene"></div>
+          <div class="f-field">
+            <label>Grid Size</label>
+            <select name="grid_size">
+              <option value="3">3×3 — Easy</option>
+              <option value="4" selected>4×4 — Medium</option>
+              <option value="5">5×5 — Hard</option>
+            </select>
+          </div>
+          <div class="f-field"><label>Order (0 = first)</label><input type="number" name="order_num" value="0" min="0"></div>
+          <div class="f-field full">
+            <label>Image File (JPG / PNG / WebP)</label>
+            <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp" required
+              style="padding:10px;background:rgba(255,255,255,.05);border:1.5px dashed rgba(99,102,241,.4);border-radius:12px;color:var(--text-primary);width:100%;box-sizing:border-box">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Any square or landscape image works great. Will be auto-sliced into puzzle pieces.</div>
+          </div>
+        </div>
+        <button type="submit" class="add-btn" style="background:linear-gradient(135deg,#6366f1,#4f46e5);margin-top:8px">🧩 Add Level</button>
+      </form>
+    </div>
+
+    {% if jigsaw_levels %}
+    <div class="section-label">{{ jigsaw_levels|length }} Level{{ 's' if jigsaw_levels|length != 1 }}</div>
+    <table class="a-table">
+      <tr><th>Order</th><th>Title</th><th>Grid</th><th>Image</th><th>Description</th><th>Action</th></tr>
+      {% for lv in jigsaw_levels %}
+      <tr>
+        <td style="font-weight:700;color:var(--honey)">{{ lv.order_num }}</td>
+        <td><strong>{{ lv.title }}</strong></td>
+        <td><span style="background:rgba(99,102,241,.15);color:#818cf8;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700">{{ lv.grid_size }}×{{ lv.grid_size }}</span></td>
+        <td><img src="/static/{{ lv.image_path }}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid var(--stat-border)"></td>
+        <td style="color:var(--text-muted);font-size:13px">{{ lv.description or '—' }}</td>
+        <td>
+          <form method="post" action="/admin/jigsaw/delete/{{ lv.id }}" onsubmit="return confirm('Delete this level?')">
+            <button type="submit" class="del-btn">🗑</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div style="text-align:center;padding:40px;color:var(--text-muted)">
+      <div style="font-size:40px;margin-bottom:10px">🧩</div>
+      <div>No levels yet. Upload your first image above!</div>
+    </div>
+    {% endif %}
+  </div>
+
   <!-- ── PROMOTE USERS PANEL ── -->
   <div class="a-panel" id="panel-promote">
 

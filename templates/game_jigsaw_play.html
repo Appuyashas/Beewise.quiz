@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – {{ level.title }} 🧩{% endblock %}
+{% block head %}
+<style>
+.jw-wrap{max-width:1100px;margin:auto;padding:18px 14px 80px}
+
+/* Header */
+.jw-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px}
+.jw-header-left{display:flex;align-items:center;gap:12px}
+.back-btn{padding:8px 16px;border-radius:30px;border:1.5px solid var(--stat-border);background:var(--card-bg);
+  color:var(--text-muted);font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;transition:.2s;font-family:'Nunito',sans-serif}
+.back-btn:hover{border-color:var(--honey);color:var(--honey)}
+.jw-level-badge{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;color:var(--text-primary)}
+.jw-level-sub{font-size:12px;color:var(--text-muted);font-weight:600}
+
+/* HUD */
+.jw-hud{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.hud-pill{background:var(--card-bg);border:1.5px solid var(--stat-border);border-radius:30px;
+  padding:7px 16px;font-size:13px;font-weight:800;font-family:'Space Grotesk',sans-serif;color:var(--text-primary)}
+.hud-pill span{color:var(--honey)}
+
+/* Progress */
+.jw-prog{height:8px;background:rgba(255,255,255,.08);border-radius:20px;overflow:hidden;margin-bottom:16px;border:1px solid var(--stat-border)}
+.jw-prog-bar{height:100%;width:0%;background:linear-gradient(90deg,#FFD84D,#4ade80);border-radius:20px;transition:.35s}
+
+/* Layout */
+.jw-layout{display:grid;grid-template-columns:1fr 280px;gap:16px}
+@media(max-width:860px){.jw-layout{grid-template-columns:1fr}}
+
+/* Board */
+#jw-board{display:grid;width:100%;aspect-ratio:1;background:var(--card-bg);
+  border:3px solid var(--stat-border);border-radius:18px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.slot{border:1px solid rgba(255,255,255,.06);position:relative;aspect-ratio:1;
+  cursor:pointer;transition:.15s;background:rgba(0,0,0,.15)}
+.slot:hover:not(.filled){background:rgba(255,216,77,.15);border-color:rgba(255,216,77,.5)}
+.slot.filled{cursor:default}
+.slot.drag-over:not(.filled){background:rgba(74,222,128,.2)!important;border-color:#4ade80!important}
+.slot img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+@keyframes popIn{0%{transform:scale(.7);opacity:0}65%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+.slot.correct img{animation:popIn .4s cubic-bezier(.34,1.56,.64,1)}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.slot.shake{animation:shake .3s ease}
+
+/* Side */
+.jw-side{display:flex;flex-direction:column;gap:14px}
+.side-label{font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+
+/* Tray */
+#jw-tray{display:grid;gap:8px;background:var(--card-bg);border:3px solid var(--stat-border);
+  border-radius:14px;padding:10px;min-height:120px;align-content:start}
+.piece{aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:grab;
+  border:3px solid transparent;transition:.2s;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.piece img{width:100%;height:100%;object-fit:cover;pointer-events:none;display:block}
+.piece:hover:not(.used){transform:scale(1.07);box-shadow:0 6px 16px rgba(0,0,0,.3)}
+.piece.selected{border-color:#FFD84D!important;box-shadow:0 0 20px rgba(255,216,77,.6)!important;transform:scale(1.08)}
+.piece.used{opacity:.15;pointer-events:none;filter:grayscale(1)}
+.piece.dragging{opacity:.45;transform:scale(1.12)}
+
+/* Reference */
+.ref-box{background:var(--card-bg);border:3px solid var(--stat-border);border-radius:14px;padding:12px}
+.ref-box img{width:100%;border-radius:10px;display:block}
+
+/* Win */
+.win-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:999;
+  display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.win-overlay.show{display:flex}
+.win-box{background:var(--card-bg);border:3px solid #FFD84D;border-radius:24px;
+  padding:32px 24px;text-align:center;max-width:380px;width:100%}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+.win-box{animation:slideUp .4s cubic-bezier(.34,1.56,.64,1)}
+.win-title{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:900;
+  background:linear-gradient(135deg,#FFD84D,#FB8500);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text;margin:10px 0 6px}
+.win-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 20px}
+.win-stat{background:rgba(255,216,77,.07);border:1px solid var(--stat-border);border-radius:12px;padding:14px}
+.win-stat-l{font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase}
+.win-stat-v{font-size:1.4rem;font-weight:800;color:#FFD84D;margin-top:4px}
+.win-btns{display:flex;flex-direction:column;gap:8px}
+.win-btn{padding:13px;border:none;border-radius:12px;font-family:'Nunito',sans-serif;
+  font-size:14px;font-weight:800;cursor:pointer;transition:.2s;text-decoration:none;display:block;text-align:center}
+.win-btn.pri{background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e}
+.win-btn.sec{background:var(--card-bg);border:1.5px solid var(--stat-border);color:var(--text-muted)}
+.win-btn:hover{transform:translateY(-2px)}
+
+/* bee mode */
+body.bee-mode #jw-board,body.bee-mode #jw-tray,body.bee-mode .ref-box,
+body.bee-mode .hud-pill,body.bee-mode .win-box{background:#fff!important;border-color:#fde68a!important}
+body.bee-mode .jw-level-badge{color:#1a1a2e!important}
+body.bee-mode .slot{background:rgba(0,0,0,.04)}
+body.bee-mode .win-stat{background:#fffbeb!important}
+body.bee-mode .win-btn.sec{background:#fff!important;border-color:#fde68a!important;color:#7a5a00!important}
+
+@media(max-width:480px){
+  .jw-hud{gap:6px}
+  .hud-pill{font-size:11px;padding:5px 10px}
+  #jw-tray{grid-template-columns:repeat(5,1fr)!important}
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="jw-wrap">
+
+  <!-- Header -->
+  <div class="jw-header">
+    <div class="jw-header-left">
+      <a href="/games/jigsaw" class="back-btn">← Levels</a>
+      <div>
+        <div class="jw-level-badge">🧩 Level {{ level.order_num + 1 }} — {{ level.title }}</div>
+        <div class="jw-level-sub">{{ level.grid_size }}×{{ level.grid_size }} grid · {{ level.description or 'Click a piece then click where it goes' }}</div>
+      </div>
+    </div>
+    <button class="back-btn" onclick="startGame()" style="border-color:rgba(74,222,128,.4);color:#4ade80">🔄 Restart</button>
+  </div>
+
+  <!-- HUD -->
+  <div class="jw-hud">
+    <div class="hud-pill">⏱ <span id="jwTime">0:00</span></div>
+    <div class="hud-pill">🧩 <span id="jwLeft">{{ level.grid_size * level.grid_size }}</span> left</div>
+    <div class="hud-pill">✅ <span id="jwDone">0</span> placed</div>
+    {% if progress and progress.stars %}<div class="hud-pill">Best: {% for i in range(progress.stars) %}⭐{% endfor %}</div>{% endif %}
+  </div>
+
+  <!-- Progress -->
+  <div class="jw-prog"><div class="jw-prog-bar" id="jwProg"></div></div>
+
+  <!-- Layout -->
+  <div class="jw-layout">
+    <div id="jw-board"></div>
+    <div class="jw-side">
+      <div>
+        <div class="side-label">🎒 Pieces <span style="font-size:10px;color:var(--text-muted)">(tap or drag)</span></div>
+        <div id="jw-tray"></div>
+      </div>
+      <div class="ref-box">
+        <div class="side-label" style="margin-bottom:6px">📸 Reference</div>
+        <img src="/static/{{ level.image_path }}" alt="reference" id="jwRef">
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Win modal -->
+<div class="win-overlay" id="jwWin">
+  <div class="win-box">
+    <div style="font-size:50px">🎉</div>
+    <div class="win-title">Puzzle Complete!</div>
+    <div id="winStars" style="font-size:28px;margin-bottom:4px"></div>
+    <div class="win-grid">
+      <div class="win-stat"><div class="win-stat-l">Time</div><div class="win-stat-v" id="wTime">-</div></div>
+      <div class="win-stat"><div class="win-stat-l">Score</div><div class="win-stat-v" id="wScore">-</div></div>
+      <div class="win-stat"><div class="win-stat-l">Grid</div><div class="win-stat-v">{{ level.grid_size }}×{{ level.grid_size }}</div></div>
+      <div class="win-stat"><div class="win-stat-l">Level</div><div class="win-stat-v">{{ level.order_num + 1 }}</div></div>
+    </div>
+    <div id="winAchs" style="margin-bottom:14px;font-size:13px;color:var(--honey);font-weight:700;min-height:20px"></div>
+    <div class="win-btns">
+      <button class="win-btn pri" onclick="startGame()">▶ Play Again</button>
+      <a href="/games/jigsaw" class="win-btn sec">← All Levels</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const GRID = {{ level.grid_size }};
+const IMG_SRC = '/static/{{ level.image_path }}';
+const LEVEL_ID = {{ level.id }};
+const TOTAL = GRID * GRID;
+
+let pieces = [], selectedPiece = null;
+let placed = 0, seconds = 0, timerInt = null, gameActive = false;
+
+function startGame(){
+  clearInterval(timerInt);
+  placed = 0; selectedPiece = null; seconds = 0; gameActive = false;
+  document.getElementById('jwWin').classList.remove('show');
+  document.getElementById('jwTime').textContent = '0:00';
+  document.getElementById('jwDone').textContent = '0';
+  document.getElementById('jwLeft').textContent = TOTAL;
+  document.getElementById('jwProg').style.width = '0%';
+
+  const masterImg = new Image();
+  masterImg.crossOrigin = 'anonymous';
+  masterImg.onload = function(){
+    const size = Math.min(masterImg.width, masterImg.height, 800);
+    // Slice pieces
+    const ps = Math.floor(size / GRID);
+    let raw = [];
+    for(let r = 0; r < GRID; r++){
+      for(let c = 0; c < GRID; c++){
+        const pc = document.createElement('canvas');
+        pc.width = ps; pc.height = ps;
+        const ctx = pc.getContext('2d');
+        // Draw from master, cropping to square first
+        const sx = (masterImg.width  - size) / 2;
+        const sy = (masterImg.height - size) / 2;
+        ctx.drawImage(masterImg, sx + c*ps, sy + r*ps, ps, ps, 0, 0, ps, ps);
+        raw.push({ correctIdx: r*GRID+c, dataUrl: pc.toDataURL(), used: false, el: null });
+      }
+    }
+    // Shuffle
+    for(let i = raw.length-1; i > 0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [raw[i], raw[j]] = [raw[j], raw[i]];
+    }
+    pieces = raw;
+    buildBoard();
+    buildTray(ps);
+    gameActive = true;
+    timerInt = setInterval(tick, 1000);
+  };
+  masterImg.onerror = function(){
+    document.getElementById('jw-board').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">⚠️ Image failed to load. Try restarting.</div>';
+  };
+  masterImg.src = IMG_SRC + '?t=' + Date.now();
+}
+
+function buildBoard(){
+  const board = document.getElementById('jw-board');
+  board.innerHTML = '';
+  board.style.gridTemplateColumns = `repeat(${GRID},1fr)`;
+  for(let i = 0; i < TOTAL; i++){
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.dataset.idx = i;
+    slot.addEventListener('click', () => slotClick(i));
+    slot.addEventListener('dragover', e => { e.preventDefault(); if(!slot.classList.contains('filled')) slot.classList.add('drag-over'); });
+    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+    slot.addEventListener('drop', e => { e.preventDefault(); slot.classList.remove('drag-over'); tryPlace(i); });
+    slot.addEventListener('touchend', e => { e.preventDefault(); tryPlace(i); }, {passive:false});
+    board.appendChild(slot);
+  }
+}
+
+function buildTray(ps){
+  const tray = document.getElementById('jw-tray');
+  const cols = GRID <= 3 ? 3 : GRID <= 4 ? 4 : 5;
+  tray.style.gridTemplateColumns = `repeat(${cols},1fr)`;
+  tray.innerHTML = '';
+  pieces.forEach((p, pi) => {
+    const div = document.createElement('div');
+    div.className = 'piece';
+    div.draggable = true;
+    const im = document.createElement('img');
+    im.src = p.dataUrl;
+    div.appendChild(im);
+    div.addEventListener('click', () => pieceClick(pi));
+    div.addEventListener('dragstart', e => {
+      if(p.used) return;
+      selectedPiece = pi;
+      div.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    div.addEventListener('dragend', () => div.classList.remove('dragging'));
+    div.addEventListener('touchstart', () => { if(!p.used) pieceClick(pi); }, {passive:true});
+    tray.appendChild(div);
+    p.el = div;
+  });
+}
+
+function pieceClick(pi){
+  if(pieces[pi].used || !gameActive) return;
+  document.querySelectorAll('.piece').forEach(p => p.classList.remove('selected'));
+  if(selectedPiece === pi){ selectedPiece = null; return; }
+  selectedPiece = pi;
+  pieces[pi].el.classList.add('selected');
+}
+
+function slotClick(si){
+  if(selectedPiece === null || !gameActive) return;
+  const slot = document.querySelector(`.slot[data-idx="${si}"]`);
+  if(slot.classList.contains('filled')) return;
+  tryPlace(si);
+}
+
+function tryPlace(si){
+  if(selectedPiece === null || !gameActive) return;
+  const slot = document.querySelector(`.slot[data-idx="${si}"]`);
+  if(!slot || slot.classList.contains('filled')) return;
+  const p = pieces[selectedPiece];
+  if(p.correctIdx === si){
+    const im = document.createElement('img');
+    im.src = p.dataUrl;
+    slot.innerHTML = '';
+    slot.appendChild(im);
+    slot.classList.add('filled', 'correct');
+    p.used = true;
+    p.el.classList.add('used');
+    placed++;
+    selectedPiece = null;
+    document.querySelectorAll('.piece').forEach(p => p.classList.remove('selected'));
+    updateHUD();
+    if(placed === TOTAL) win();
+  } else {
+    slot.classList.add('shake');
+    setTimeout(() => slot.classList.remove('shake'), 320);
+    selectedPiece = null;
+    document.querySelectorAll('.piece').forEach(p => p.classList.remove('selected'));
+  }
+}
+
+function updateHUD(){
+  document.getElementById('jwLeft').textContent = TOTAL - placed;
+  document.getElementById('jwDone').textContent = placed;
+  document.getElementById('jwProg').style.width = (placed/TOTAL*100) + '%';
+}
+
+function tick(){
+  seconds++;
+  const m = Math.floor(seconds/60), s = seconds%60;
+  document.getElementById('jwTime').textContent = m+':'+(s<10?'0'+s:s);
+}
+
+function win(){
+  gameActive = false;
+  clearInterval(timerInt);
+  const tStr = document.getElementById('jwTime').textContent;
+  const stars = seconds < 60 ? 3 : seconds < 180 ? 2 : 1;
+  const score = Math.max(100, 8000 - seconds*8 + GRID*200);
+  const starStr = '⭐'.repeat(stars) + '☆'.repeat(3-stars);
+  document.getElementById('wTime').textContent = tStr;
+  document.getElementById('wScore').textContent = score;
+  document.getElementById('winStars').textContent = starStr;
+  document.getElementById('jwWin').classList.add('show');
+
+  // Save to server
+  fetch('/games/jigsaw/complete', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({level_id:LEVEL_ID, time:seconds, stars})
+  }).then(r=>r.json()).then(d=>{
+    if(d.awarded && d.awarded.length){
+      document.getElementById('winAchs').textContent =
+        '🏆 Unlocked: ' + d.awarded.map(a=>a.icon+' '+a.name).join(' · ');
+    }
+  }).catch(()=>{});
+}
+
+startGame();
+</script>
+{% endblock %}
