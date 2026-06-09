@@ -2,7 +2,9 @@ from flask import Flask, render_template, request, redirect, session, flash, jso
 from functools import wraps
 from questions import get_shuffled_questions, CATEGORIES, ALL_QUESTIONS
 import psycopg2
-from psycopg2.extras import RealDictCursor, hashlib, time, json, os, csv, io, datetime, requests as http_req
+from psycopg2.extras import RealDictCursor
+import hashlib, time, json, os, csv, io, datetime, re
+import requests as http_req
 
 # ── AI module ────────────────────────────────────────────────────────
 from ai import beebot_reply, generate_questions
@@ -376,13 +378,28 @@ def _pg_sql(sql):
     sql = sql.replace('?', '%s')
     sql = re.sub(r'INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY', sql, flags=re.IGNORECASE)
     sql = re.sub(r'BIGINT PRIMARY KEY AUTOINCREMENT', 'BIGSERIAL PRIMARY KEY', sql, flags=re.IGNORECASE)
+    # datetime('now', offset) variants
+    sql = re.sub(r"datetime\('now',\s*'([^']+)'\)", lambda m: _sqlite_interval(m.group(1)), sql, flags=re.IGNORECASE)
     sql = re.sub(r"datetime\('now'\)", 'NOW()', sql, flags=re.IGNORECASE)
     sql = re.sub(r"date\('now'\)", 'CURRENT_DATE', sql, flags=re.IGNORECASE)
     sql = re.sub(r"DATE\('now'\)", 'CURRENT_DATE', sql, flags=re.IGNORECASE)
-    sql = re.sub(r'INSERT INTO', 'INSERT INTO', sql, flags=re.IGNORECASE)
-    sql = re.sub(r'INSERT INTO', 'INSERT INTO', sql, flags=re.IGNORECASE)
-    sql = re.sub(r'CREATE TABLE IF NOT EXISTS', 'CREATE TABLE IF NOT EXISTS', sql, flags=re.IGNORECASE)
+    # date(column) used as cast → column::date
+    sql = re.sub(r'\bdate\((\w+)\)', r'\1::date', sql, flags=re.IGNORECASE)
+    # strftime('%w', col) IN ('0','6') → EXTRACT(DOW FROM col) IN (0,6)
+    sql = re.sub(r"strftime\('%w',\s*(\w+)\)\s*IN\s*\('0','6'\)", r"EXTRACT(DOW FROM \1) IN (0,6)", sql, flags=re.IGNORECASE)
+    # datetime(col) used for casting text to timestamp
+    sql = re.sub(r'\bdatetime\((\w+)\)', r'\1::timestamp', sql, flags=re.IGNORECASE)
     return sql
+
+def _sqlite_interval(offset_str):
+    """Convert SQLite datetime offset like '-1 second' to PostgreSQL NOW() expression."""
+    offset_str = offset_str.strip()
+    m = re.match(r'^([+-])(\d+)\s+(\w+)$', offset_str)
+    if m:
+        sign, n, unit = m.group(1), m.group(2), m.group(3).rstrip('s') + 's'
+        op = '-' if sign == '-' else '+'
+        return f"NOW() {op} INTERVAL '{n} {unit}'"
+    return 'NOW()'
 
 
 def init_db():
@@ -584,13 +601,13 @@ def check_and_award(user_id, result_data):
             "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND pct>=80", (user_id,)).fetchone()["c"]
         streak = conn.execute("SELECT streak FROM users WHERE id=%s", (user_id,)).fetchone()["streak"]
         prev_best = conn.execute(
-            "SELECT MAX(pct) as best FROM results WHERE user_id=%s AND played_at < datetime('now','-1 second')",
+            "SELECT MAX(pct) as best FROM results WHERE user_id=%s AND played_at < NOW() - INTERVAL '1 second'",
             (user_id,)).fetchone()["best"] or 0
         same_score = conn.execute(
             "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND pct=%s",
             (user_id, pct)).fetchone()["c"]
         days_played = conn.execute(
-            "SELECT COUNT(DISTINCT date(played_at)) as d FROM results WHERE user_id=%s",
+            "SELECT COUNT(DISTINCT played_at::date) as d FROM results WHERE user_id=%s",
             (user_id,)).fetchone()["d"]
 
     # Total correct answers ever
@@ -792,7 +809,7 @@ def check_and_award(user_id, result_data):
     # Secret: played all 3 modes today
     with get_db() as conn3:
         modes_today = {r["mode"] for r in conn3.execute(
-            "SELECT DISTINCT mode FROM results WHERE user_id=%s AND date(played_at)=CURRENT_DATE",
+            "SELECT DISTINCT mode FROM results WHERE user_id=%s AND played_at::date=CURRENT_DATE",
             (user_id,)).fetchall()}
     has_qb = any("BeeWise" in m and "RapidBee" not in m and "Practice" not in m for m in modes_today)
     has_rb = "RapidBee" in modes_today
@@ -804,7 +821,7 @@ def check_and_award(user_id, result_data):
     dow = datetime.datetime.now().weekday()
     with get_db() as conn4:
         weekends = conn4.execute(
-            "SELECT COUNT(DISTINCT date(played_at)) as c FROM results WHERE user_id=%s AND strftime('%w',played_at) IN ('0','6')",
+            "SELECT COUNT(DISTINCT played_at::date) as c FROM results WHERE user_id=%s AND EXTRACT(DOW FROM played_at) IN (0,6)",
             (user_id,)).fetchone()["c"]
     if weekends >= 2: award("weekend_bee")
     return newly_earned
@@ -812,9 +829,9 @@ def check_and_award(user_id, result_data):
 def save_result(user_id, mode, score, total, pct, grade, time_taken, answer_log_data, tab_switches=0):
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO results (user_id,mode,score,total,pct,grade,time_taken,tab_switches) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO results (user_id,mode,score,total,pct,grade,time_taken,tab_switches) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (user_id, mode, score, total, pct, grade, time_taken, tab_switches))
-        result_id = cur.lastrowid
+        result_id = cur.fetchone()["id"]
         for entry in answer_log_data:
             conn.execute(
                 "INSERT INTO answer_log (result_id,question,category,correct,user_ans,correct_ans,time_spent) VALUES (%s,%s,%s,%s,%s,%s,%s)",
@@ -1035,7 +1052,7 @@ def mode():
     with get_db() as conn:
         exams = conn.execute("""
             SELECT * FROM exam_sessions WHERE active=1
-            AND NOW() BETWEEN datetime(start_time) AND datetime(end_time)
+            AND NOW() BETWEEN start_time::timestamp AND end_time::timestamp
         """).fetchall()
     return render_template("mode.html", categories=CATEGORIES, exams=exams)
 
@@ -1674,6 +1691,7 @@ def customizebee_csv():
         import json as _json
         end_time = time.time() + 600
         with get_db() as conn:
+            conn.execute("DELETE FROM cb_sessions WHERE user_id=%s", (session["user_id"],))
             conn.execute("""INSERT INTO cb_sessions
                 (user_id, questions, idx, score, log, total, end_time)
                 VALUES (%s,%s,0,0,'[]',%s,%s)""",
@@ -1725,6 +1743,7 @@ def customizebee_ai():
     import json as _json
     end_time = time.time() + 600
     with get_db() as conn:
+        conn.execute("DELETE FROM cb_sessions WHERE user_id=%s", (session["user_id"],))
         conn.execute("""INSERT INTO cb_sessions
             (user_id, questions, idx, score, log, total, end_time)
             VALUES (%s,%s,0,0,'[]',%s,%s)""",
@@ -1841,12 +1860,12 @@ init_classes()
 @require_admin
 def create_class():
     if request.method == "GET":
-        return redirect("/admin%stab=classes")
+        return redirect("/admin?tab=classes")
     import random as _rnd, string as _str
     name = request.form.get("class_name","").strip()
     if not name:
         flash("Class name is required.", "error")
-        return redirect("/admin%stab=classes")
+        return redirect("/admin?tab=classes")
     code = ''.join(_rnd.choices(_str.ascii_uppercase + _str.digits, k=6))
     try:
         with get_db() as conn:
@@ -1855,7 +1874,7 @@ def create_class():
         flash(f"Class '{name}' created! Share this code with students: {code} 🎓", "success")
     except Exception as e:
         flash(f"Error creating class: {str(e)}", "error")
-    return redirect("/admin%stab=classes")
+    return redirect("/admin?tab=classes")
 
 @app.route("/admin/delete_class/<int:cid>", methods=["POST"])
 @require_login
@@ -1865,7 +1884,7 @@ def delete_class(cid):
         conn.execute("DELETE FROM class_members WHERE class_id=%s", (cid,))
         conn.execute("DELETE FROM classes WHERE id=%s", (cid,))
     flash("Class deleted.", "success")
-    return redirect("/admin%stab=classes")
+    return redirect("/admin?tab=classes")
 
 @app.route("/join_class", methods=["POST"])
 @require_login
@@ -1903,7 +1922,7 @@ def leave_class(cid):
 @require_admin
 def create_room():
     if request.method == "GET":
-        return redirect("/admin%stab=rooms")
+        return redirect("/admin?tab=rooms")
     import random as _r, string as _s, json as _j, csv as _csv, io as _io
 
     title      = request.form.get("room_title","").strip()
@@ -1912,7 +1931,7 @@ def create_room():
 
     if not title:
         flash("Room title is required.", "error")
-        return redirect("/admin%stab=rooms")
+        return redirect("/admin?tab=rooms")
 
     questions = []
 
@@ -1920,7 +1939,7 @@ def create_room():
         f = request.files.get("room_csv")
         if not f or f.filename == "":
             flash("Please upload a CSV file.", "error")
-            return redirect("/admin%stab=rooms")
+            return redirect("/admin?tab=rooms")
         try:
             raw = f.stream.read()
             for enc in ("utf-8-sig","utf-8","latin-1"):
@@ -1947,11 +1966,11 @@ def create_room():
                     })
         except Exception as e:
             flash(f"CSV error: {e}", "error")
-            return redirect("/admin%stab=rooms")
+            return redirect("/admin?tab=rooms")
 
     if not questions:
         flash("No valid questions found in the CSV.", "error")
-        return redirect("/admin%stab=rooms")
+        return redirect("/admin?tab=rooms")
 
     # Store RAW questions (unshuffled) — shuffling happens per student at quiz time
     code = ''.join(_r.choices(_s.ascii_uppercase + _s.digits, k=6))
@@ -1964,7 +1983,7 @@ def create_room():
         flash(f"Room '{title}' created! Code: {code}", "success")
     except Exception as e:
         flash(f"Error: {e}", "error")
-    return redirect("/admin%stab=rooms")
+    return redirect("/admin?tab=rooms")
 
 @app.route("/admin/delete_room/<int:rid>", methods=["POST"])
 @require_login
@@ -1974,7 +1993,7 @@ def delete_room(rid):
         conn.execute("DELETE FROM room_results WHERE room_id=%s", (rid,))
         conn.execute("DELETE FROM quiz_rooms WHERE id=%s", (rid,))
     flash("Room deleted.", "success")
-    return redirect("/admin%stab=rooms")
+    return redirect("/admin?tab=rooms")
 
 @app.route("/admin/room_results/<int:rid>")
 @require_login
@@ -1984,7 +2003,7 @@ def admin_room_results(rid):
         room = conn.execute("SELECT * FROM quiz_rooms WHERE id=%s", (rid,)).fetchone()
         if not room:
             flash("Room not found.", "error")
-            return redirect("/admin%stab=rooms")
+            return redirect("/admin?tab=rooms")
         results = conn.execute("""
             SELECT u.username, u.avatar, rr.score, rr.total, rr.pct,
                    rr.time_taken, rr.finished
@@ -2066,6 +2085,7 @@ def room_start(rid):
     start_t = time.time()
     end_t   = start_t + room["time_limit"] * len(final)
     with get_db() as conn:
+        conn.execute("DELETE FROM room_quiz_sessions WHERE user_id=%s", (session["user_id"],))
         conn.execute("""INSERT INTO room_quiz_sessions
             (user_id, room_id, room_title, questions, idx, score, total, start_time, end_time)
             VALUES (%s,%s,%s,%s,0,0,%s,%s,%s)""",
@@ -2426,7 +2446,7 @@ def admin_beexam_upload():
 
     if not csv_file or not exam_name or not year:
         flash("Exam name, year, and CSV file are required.", "error")
-        return redirect("/admin%stab=beexam")
+        return redirect("/admin?tab=beexam")
 
     try:
         text   = csv_file.read().decode("utf-8-sig")
@@ -2438,16 +2458,16 @@ def admin_beexam_upload():
 
         if not rows:
             flash("CSV file is empty.", "error")
-            return redirect("/admin%stab=beexam")
+            return redirect("/admin?tab=beexam")
 
         with get_db() as conn:
             cur = conn.execute(
                 """INSERT INTO beexam_papers
                    (exam_name, subject, year, time_limit, cutoff, exam_group, created_by)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (exam_name, subject, year, time_limit, cutoff, exam_group, session["user_id"])
             )
-            paper_id = cur.lastrowid
+            paper_id = cur.fetchone()["id"]
             count = 0
             for row in rows:
                 if len(row) < 5: continue
@@ -2467,7 +2487,7 @@ def admin_beexam_upload():
     except Exception as e:
         flash(f"Upload failed: {e}", "error")
 
-    return redirect("/admin%stab=beexam")
+    return redirect("/admin?tab=beexam")
 
 
 @app.route("/admin/beexam/create_exam_type", methods=["POST"])
@@ -2479,14 +2499,14 @@ def admin_beexam_create_type():
     group = request.form.get("exam_group","Other").strip()
     if not name:
         flash("Exam name is required.", "error")
-        return redirect("/admin%stab=beexam")
+        return redirect("/admin?tab=beexam")
     try:
         with get_db() as conn:
             conn.execute("INSERT INTO beexam_exam_types (name, exam_group) VALUES (%s,%s)", (name, group))
         flash(f"✅ Exam panel '{name}' created!", "success")
     except Exception:
         flash(f"'{name}' already exists.", "error")
-    return redirect("/admin%stab=beexam")
+    return redirect("/admin?tab=beexam")
 
 
 @app.route("/admin/beexam/add_question", methods=["POST"])
@@ -2503,14 +2523,14 @@ def admin_beexam_add_question():
     category = request.form.get("category","").strip()
     if not all([paper_id, question, opt0, opt1, opt2, opt3]):
         flash("All fields are required.", "error")
-        return redirect("/admin%stab=beexam")
+        return redirect("/admin?tab=beexam")
     with get_db() as conn:
         conn.execute("""INSERT INTO beexam_questions
             (paper_id, question, opt0, opt1, opt2, opt3, category)
             VALUES (%s,%s,%s,%s,%s,%s,%s)""", (paper_id, question, opt0, opt1, opt2, opt3, category))
         conn.execute("UPDATE beexam_papers SET question_count = question_count+1 WHERE id=%s", (paper_id,))
     flash("✅ Question added!", "success")
-    return redirect("/admin%stab=beexam")
+    return redirect("/admin?tab=beexam")
 
 
 @app.route("/admin/beexam/delete_exam_type/<exam_name>", methods=["POST"])
@@ -2526,7 +2546,7 @@ def admin_beexam_delete_type(exam_name):
         conn.execute("DELETE FROM beexam_papers WHERE exam_name=%s", (exam_name,))
         conn.execute("DELETE FROM beexam_exam_types WHERE name=%s", (exam_name,))
     flash(f"Deleted '{exam_name}' and all its papers.", "success")
-    return redirect("/admin%stab=beexam")
+    return redirect("/admin?tab=beexam")
 
 
 @app.route("/admin/beexam/delete/<int:paper_id>", methods=["POST"])
@@ -2542,7 +2562,7 @@ def admin_beexam_delete(paper_id):
             conn.execute("DELETE FROM beexam_questions WHERE paper_id=%s", (paper_id,))
             conn.execute("DELETE FROM beexam_papers WHERE id=%s", (paper_id,))
             flash(f"Deleted {paper['exam_name']} {paper['year']}.", "success")
-    return redirect("/admin%stab=beexam")
+    return redirect("/admin?tab=beexam")
 
 
 # ── Teacher Dashboard ──────────────────────────────────────────────────────────
