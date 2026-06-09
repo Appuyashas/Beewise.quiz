@@ -1,22 +1,20 @@
 from flask import Flask, render_template, request, redirect, session, flash, jsonify, Response
 from functools import wraps
 from questions import get_shuffled_questions, CATEGORIES, ALL_QUESTIONS
-import sqlite3, hashlib, time, json, os, csv, io, datetime, requests as http_req
+import psycopg2
+from psycopg2.extras import RealDictCursor, hashlib, time, json, os, csv, io, datetime, requests as http_req
 
 # ── AI module ────────────────────────────────────────────────────────
 from ai import beebot_reply, generate_questions
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "beewise_secret_2025")  # ⚠️ Set SECRET_KEY env var in production!
-app.config["PERMANENT_SESSION_LIFETIME"] = __import__("datetime").timedelta(days=7)
-app.config["SESSION_COOKIE_HTTPONLY"]    = True
-app.config["SESSION_COOKIE_SAMESITE"]   = "Lax"
 
 QUIZ_LIMIT  = 25
 RAPID_LIMIT = 25
 RAPID_TIME  = 180
 QUIZ_TIME   = 180
-DB_PATH     = os.environ.get("DB_PATH", "beewise.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 ADMIN_CODE   = os.environ.get("ADMIN_CODE",   "ADMIN2025")   # ⚠️ Set ADMIN_CODE env var in production!
 TEACHER_CODE = os.environ.get("TEACHER_CODE", "TEACHER2025")
 
@@ -115,7 +113,7 @@ ACHIEVEMENTS = [
 {"id":"secret_1am",      "name":"Insomniac",         "desc":"Play at exactly 1 AM",                "icon":"😴","secret":True},
 {"id":"secret_score42",  "name":"42",                "desc":"Score exactly 42% in a quiz",         "icon":"🌌","secret":True},
 {"id":"secret_score69",  "name":"Nice",              "desc":"Score exactly 69% in a quiz",         "icon":"😏","secret":True},
-{"id":"secret_all_wrong","name":"Trying to Fail",    "desc":"Score 0% in a quiz (really?)",        "icon":"🤡","secret":True},
+{"id":"secret_all_wrong","name":"Trying to Fail",    "desc":"Score 0% in a quiz (really%s)",        "icon":"🤡","secret":True},
 {"id":"secret_same_score","name":"Consistent Mess",  "desc":"Get the exact same score 3 times",    "icon":"🔄","secret":True},
 {"id":"secret_rapid_all","name":"Bee Unstoppable",   "desc":"Play all 3 modes in the same day",    "icon":"🌀","secret":True},
 {"id":"secret_comeback2","name":"Phoenix Bee",       "desc":"Go from 0% to 100% in consecutive games","icon":"🔥","secret":True},
@@ -327,58 +325,65 @@ ACHIEVEMENTS = [
 {"id":"games_220",         "name":"220 Games",         "desc":"Play 220 games total",                        "icon":"🎮","secret":False},
 {"id":"q_correct_600",     "name":"600 Right",         "desc":"Answer 600 questions correctly",              "icon":"🌟","secret":False},
 {"id":"q_correct_800",     "name":"800 Right",         "desc":"Answer 800 questions correctly",              "icon":"🏅","secret":False},
-# ── GAMESPACE ─────────────────────────────────────────────────────────────────
-{"id":"first_game_memory",  "name":"Memory Bee",        "desc":"Play Memory Match for the first time",        "icon":"🧠","secret":False},
-{"id":"first_speedmath",    "name":"Math Bee",          "desc":"Play Speed Math for the first time",          "icon":"🔢","secret":False},
-{"id":"first_scramble",     "name":"Word Bee",          "desc":"Play Word Scramble for the first time",       "icon":"🔤","secret":False},
-{"id":"first_chess",        "name":"Chess Bee",         "desc":"Play your first chess game",                  "icon":"♟️","secret":False},
-{"id":"all_games",          "name":"Game Explorer",     "desc":"Try all 4 GameSpace games",                   "icon":"🕹️","secret":False},
-{"id":"memory_hard",        "name":"Hard Memory",       "desc":"Complete Hard (6x4) Memory Match",            "icon":"🧠","secret":False},
-{"id":"memory_under60",     "name":"Memory Flash",      "desc":"Complete Easy Memory Match under 60 seconds", "icon":"⚡","secret":False},
-{"id":"speedmath_streak5",  "name":"Math Streak",       "desc":"Get a 5-answer streak in Speed Math",         "icon":"🔥","secret":False},
-{"id":"speedmath_hard",     "name":"Hard Maths",        "desc":"Complete Hard Speed Math with 7+ correct",    "icon":"💀","secret":False},
-{"id":"scramble_noskip",    "name":"No Skip",           "desc":"Complete Word Scramble without skipping",     "icon":"🔤","secret":False},
-{"id":"scramble_perfect",   "name":"Scramble Master",   "desc":"Solve all 10 words in Word Scramble",         "icon":"🏆","secret":False},
-{"id":"games_played_10",    "name":"Gamer Bee",         "desc":"Play any GameSpace game 10 times",            "icon":"🎮","secret":False},
-{"id":"chess_expert",       "name":"Chess Expert",      "desc":"Play a game on Expert difficulty",            "icon":"♛","secret":False},
-{"id":"chess_win",          "name":"Chess Victor",      "desc":"Beat Stockfish on any difficulty",            "icon":"🏆","secret":False},
-{"id":"chess_win_medium",   "name":"Rising Chess Star", "desc":"Beat Stockfish on Medium",                    "icon":"♟️","secret":False},
-{"id":"chess_win_hard",     "name":"Chess Master",      "desc":"Beat Stockfish on Hard",                      "icon":"🎖️","secret":False},
-{"id":"chess_20moves",      "name":"Long Game",         "desc":"Play a chess game lasting 20+ moves",         "icon":"⏱️","secret":False},
-# ── BEEXAM ────────────────────────────────────────────────────────────────────
-{"id":"first_beexam",       "name":"Exam Bee",          "desc":"Complete your first BeeXam paper",            "icon":"🎓","secret":False},
-{"id":"beexam_pass",        "name":"BeeXam Pass",       "desc":"Score above the cutoff in a BeeXam paper",    "icon":"✅","secret":False},
-{"id":"beexam_perfect",     "name":"BeeXam Perfect",    "desc":"Score 100% in a BeeXam paper",                "icon":"💎","secret":False},
-{"id":"beexam_5",           "name":"Exam Regular",      "desc":"Complete 5 BeeXam papers",                    "icon":"📋","secret":False},
-{"id":"beexam_neet",        "name":"NEET Candidate",    "desc":"Complete a NEET past paper",                  "icon":"🩺","secret":False},
-{"id":"beexam_jee",         "name":"JEE Candidate",     "desc":"Complete a JEE past paper",                   "icon":"⚗️","secret":False},
-{"id":"beexam_sat",         "name":"SAT Taker",         "desc":"Complete a SAT past paper",                   "icon":"📐","secret":False},
-{"id":"beexam_fulltime",    "name":"Full Timer",        "desc":"Complete a BeeXam using the official time",   "icon":"⏱️","secret":False},
-{"id":"beexam_80",          "name":"Exam Star",         "desc":"Score 80%+ in a BeeXam paper",               "icon":"⭐","secret":False},
-{"id":"beexam_3diff",       "name":"Multi-Exam Bee",    "desc":"Complete papers from 3 different exams",      "icon":"🌍","secret":False},
-# ── NEW SECRET ────────────────────────────────────────────────────────────────
-{"id":"secret_chess_draw",       "name":"Honorable Draw",     "desc":"Draw against Stockfish",                         "icon":"🤝","secret":True},
-{"id":"secret_chess_expert_win", "name":"The Grandmaster",    "desc":"Beat Stockfish on Expert difficulty",            "icon":"👑","secret":True},
-{"id":"secret_chess_undo",       "name":"Take It Back",       "desc":"Use Undo 5 times in one chess game",             "icon":"↩️","secret":True},
-{"id":"secret_memory_1min",      "name":"Photographic",       "desc":"Complete Hard Memory Match under 60 seconds",    "icon":"📸","secret":True},
-{"id":"secret_all_gamespace",    "name":"GameSpace God",      "desc":"Get a win/perfect in all 4 GameSpace games",     "icon":"🕹️","secret":True},
-{"id":"secret_math_expert_10",   "name":"Calculator Brain",   "desc":"Get 10 correct in Expert Speed Math",            "icon":"🧮","secret":True},
-{"id":"secret_scramble_5s",      "name":"Unscrambler",        "desc":"Solve a Word Scramble word in under 5 seconds",  "icon":"⚡","secret":True},
-{"id":"secret_beexam_midnight",  "name":"Night Exam",         "desc":"Complete a BeeXam paper after midnight",         "icon":"🌙","secret":True},
-{"id":"secret_beexam_3inday",    "name":"Exam Marathon",      "desc":"Complete 3 BeeXam papers in one day",            "icon":"📚","secret":True},
-{"id":"secret_chess_noqueen",    "name":"No Queen?",          "desc":"Win chess without moving your Queen",            "icon":"🤯","secret":True},
-{"id":"first_jigsaw",       "name":"Puzzle Bee",      "desc":"Complete your first Jigsaw puzzle",          "icon":"🧩","secret":False},
-{"id":"jigsaw_hard",        "name":"Hard Puzzle",     "desc":"Complete a 5x5 Jigsaw puzzle",               "icon":"🧩","secret":False},
-{"id":"secret_jigsaw_fast", "name":"Speed Puzzler",   "desc":"Solve any Jigsaw puzzle in under 2 minutes",  "icon":"⚡","secret":True},
-{"id":"secret_jigsaw_5x5_fast","name":"Puzzle Master","desc":"Solve a 5x5 Jigsaw in under 3 minutes",      "icon":"👑","secret":True},
 ]
 ACH_MAP = {a["id"]: a for a in ACHIEVEMENTS}
 
 # ── DB ──────────────────────────────────────────────────────────────
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    import contextlib
+    class _PGConn:
+        """Thin wrapper making psycopg2 behave like sqlite3 for our usage."""
+        def __init__(self):
+            self._conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            self._conn.autocommit = False
+        def execute(self, sql, params=()):
+            sql = _pg_sql(sql)
+            cur = self._conn.cursor()
+            cur.execute(sql, params)
+            return cur
+        def executemany(self, sql, seq):
+            sql = _pg_sql(sql)
+            cur = self._conn.cursor()
+            for p in seq:
+                cur.execute(sql, p)
+            return cur
+        def executescript(self, script):
+            cur = self._conn.cursor()
+            for stmt in script.split(';'):
+                s = stmt.strip()
+                if s:
+                    try:
+                        cur.execute(_pg_sql(s))
+                    except Exception:
+                        self._conn.rollback()
+                        raise
+            return cur
+        def commit(self):   self._conn.commit()
+        def rollback(self): self._conn.rollback()
+        def close(self):
+            try: self._conn.commit()
+            except: pass
+            self._conn.close()
+        def __enter__(self): return self
+        def __exit__(self, exc_type, *_):
+            if exc_type: self._conn.rollback()
+            else:        self._conn.commit()
+            self._conn.close()
+    return _PGConn()
+
+def _pg_sql(sql):
+    """Convert SQLite SQL to PostgreSQL SQL."""
+    sql = sql.replace('?', '%s')
+    sql = re.sub(r'INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'BIGINT PRIMARY KEY AUTOINCREMENT', 'BIGSERIAL PRIMARY KEY', sql, flags=re.IGNORECASE)
+    sql = re.sub(r"datetime\('now'\)", 'NOW()', sql, flags=re.IGNORECASE)
+    sql = re.sub(r"date\('now'\)", 'CURRENT_DATE', sql, flags=re.IGNORECASE)
+    sql = re.sub(r"DATE\('now'\)", 'CURRENT_DATE', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'INSERT INTO', 'INSERT INTO', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'INSERT INTO', 'INSERT INTO', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'CREATE TABLE IF NOT EXISTS', 'CREATE TABLE IF NOT EXISTS', sql, flags=re.IGNORECASE)
+    return sql
+
 
 def init_db():
     with get_db() as conn:
@@ -391,7 +396,7 @@ def init_db():
                 avatar    TEXT DEFAULT '🐝',
                 streak    INTEGER DEFAULT 0,
                 last_play TEXT DEFAULT NULL,
-                created   TEXT DEFAULT (datetime('now'))
+                created   TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS results (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -403,26 +408,8 @@ def init_db():
                 grade        TEXT NOT NULL,
                 time_taken   INTEGER DEFAULT 0,
                 tab_switches INTEGER DEFAULT 0,
-                played_at    TEXT DEFAULT (datetime('now')),
+                played_at    TEXT DEFAULT (NOW()),
                 FOREIGN KEY (user_id) REFERENCES users(id)
-            );
-            CREATE TABLE IF NOT EXISTS jigsaw_levels (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                title       TEXT NOT NULL,
-                description TEXT DEFAULT '',
-                image_path  TEXT NOT NULL,
-                grid_size   INTEGER DEFAULT 4,
-                order_num   INTEGER DEFAULT 0,
-                created     TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS jigsaw_progress (
-                user_id     INTEGER NOT NULL,
-                level_id    INTEGER NOT NULL,
-                completed   INTEGER DEFAULT 0,
-                best_time   INTEGER DEFAULT 0,
-                stars       INTEGER DEFAULT 0,
-                completed_at TEXT,
-                PRIMARY KEY(user_id, level_id)
             );
             CREATE TABLE IF NOT EXISTS rb_temp (
                 user_id        INTEGER PRIMARY KEY,
@@ -430,23 +417,7 @@ def init_db():
                 log_json       TEXT DEFAULT '[]',
                 score          INTEGER DEFAULT 0,
                 tabs           INTEGER DEFAULT 0,
-                created        TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS bw_temp (
-                user_id        INTEGER PRIMARY KEY,
-                questions_json TEXT NOT NULL,
-                answers_json   TEXT DEFAULT '[]',
-                tabs           INTEGER DEFAULT 0,
-                created        TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS scheduled_tests (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                teacher_id  INTEGER NOT NULL,
-                room_id     INTEGER NOT NULL,
-                class_id    INTEGER,
-                scheduled_at TEXT NOT NULL,
-                note        TEXT DEFAULT '',
-                created     TEXT DEFAULT (datetime('now'))
+                created        TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS answer_log (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -469,7 +440,7 @@ def init_db():
                 answer    INTEGER NOT NULL DEFAULT 0,
                 category  TEXT NOT NULL DEFAULT 'General',
                 active    INTEGER DEFAULT 1,
-                created   TEXT DEFAULT (datetime('now'))
+                created   TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS exam_sessions (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -478,14 +449,14 @@ def init_db():
                 end_time   TEXT NOT NULL,
                 created_by INTEGER NOT NULL,
                 active     INTEGER DEFAULT 1,
-                created    TEXT DEFAULT (datetime('now')),
+                created    TEXT DEFAULT (NOW()),
                 FOREIGN KEY (created_by) REFERENCES users(id)
             );
             CREATE TABLE IF NOT EXISTS achievements (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id    INTEGER NOT NULL,
                 ach_id     TEXT NOT NULL,
-                earned_at  TEXT DEFAULT (datetime('now')),
+                earned_at  TEXT DEFAULT (NOW()),
                 UNIQUE(user_id, ach_id),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
@@ -498,7 +469,7 @@ def init_db():
                 log        TEXT DEFAULT '[]',
                 total      INTEGER DEFAULT 0,
                 end_time   REAL DEFAULT 0,
-                created    TEXT DEFAULT (datetime('now'))
+                created    TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS room_quiz_sessions (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -511,7 +482,7 @@ def init_db():
                 total      INTEGER DEFAULT 0,
                 start_time REAL DEFAULT 0,
                 end_time   REAL DEFAULT 0,
-                created    TEXT DEFAULT (datetime('now'))
+                created    TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS quiz_rooms (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -521,7 +492,7 @@ def init_db():
                 questions  TEXT NOT NULL,
                 time_limit INTEGER DEFAULT 30,
                 active     INTEGER DEFAULT 1,
-                created    TEXT DEFAULT (datetime('now'))
+                created    TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS room_results (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -531,7 +502,7 @@ def init_db():
                 total      INTEGER DEFAULT 0,
                 pct        INTEGER DEFAULT 0,
                 time_taken INTEGER DEFAULT 0,
-                finished   TEXT DEFAULT (datetime('now')),
+                finished   TEXT DEFAULT (NOW()),
                 UNIQUE(room_id, user_id)
             );
         """)
@@ -568,14 +539,14 @@ def update_streak(user_id):
     """Update daily streak and return current streak count."""
     today = datetime.date.today().isoformat()
     with get_db() as conn:
-        user = conn.execute("SELECT streak, last_play FROM users WHERE id=?", (user_id,)).fetchone()
+        user = conn.execute("SELECT streak, last_play FROM users WHERE id=%s", (user_id,)).fetchone()
         last = user["last_play"]
         streak = user["streak"] or 0
         if last == today:
             return streak  # already played today
         yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
         new_streak = streak + 1 if last == yesterday else 1
-        conn.execute("UPDATE users SET streak=?, last_play=? WHERE id=?", (new_streak, today, user_id))
+        conn.execute("UPDATE users SET streak=%s, last_play=%s WHERE id=%s", (new_streak, today, user_id))
         return new_streak
 
 def check_and_award(user_id, result_data):
@@ -588,38 +559,38 @@ def check_and_award(user_id, result_data):
 
     with get_db() as conn:
         existing = {r["ach_id"] for r in conn.execute(
-            "SELECT ach_id FROM achievements WHERE user_id=?", (user_id,)).fetchall()}
+            "SELECT ach_id FROM achievements WHERE user_id=%s", (user_id,)).fetchall()}
         stats = conn.execute(
             """SELECT COUNT(*) as games,
                MIN(pct) as min_pct, MAX(pct) as max_pct,
                SUM(score) as total_correct
-               FROM results WHERE user_id=?""",
+               FROM results WHERE user_id=%s""",
             (user_id,)).fetchone()
         perfect_count = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=? AND pct=100", (user_id,)).fetchone()["c"]
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND pct=100", (user_id,)).fetchone()["c"]
         grade_a_count = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=? AND pct>=80", (user_id,)).fetchone()["c"]
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND pct>=80", (user_id,)).fetchone()["c"]
         no_wrong_count = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=? AND score=total", (user_id,)).fetchone()["c"]
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND score=total", (user_id,)).fetchone()["c"]
         rapid_count = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=? AND mode='RapidBee'", (user_id,)).fetchone()["c"]
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND mode='RapidBee'", (user_id,)).fetchone()["c"]
         cats_practiced = {r["mode"].split(":")[1] for r in conn.execute(
-            "SELECT DISTINCT mode FROM results WHERE user_id=? AND mode LIKE 'Practice:%'",
+            "SELECT DISTINCT mode FROM results WHERE user_id=%s AND mode LIKE 'Practice:%'",
             (user_id,)).fetchall()}
         practice_count = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=? AND mode LIKE 'Practice:%'",
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND mode LIKE 'Practice:%'",
             (user_id,)).fetchone()["c"]
         cert_count = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=? AND pct>=80", (user_id,)).fetchone()["c"]
-        streak = conn.execute("SELECT streak FROM users WHERE id=?", (user_id,)).fetchone()["streak"]
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND pct>=80", (user_id,)).fetchone()["c"]
+        streak = conn.execute("SELECT streak FROM users WHERE id=%s", (user_id,)).fetchone()["streak"]
         prev_best = conn.execute(
-            "SELECT MAX(pct) as best FROM results WHERE user_id=? AND played_at < datetime('now','-1 second')",
+            "SELECT MAX(pct) as best FROM results WHERE user_id=%s AND played_at < datetime('now','-1 second')",
             (user_id,)).fetchone()["best"] or 0
         same_score = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=? AND pct=?",
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND pct=%s",
             (user_id, pct)).fetchone()["c"]
         days_played = conn.execute(
-            "SELECT COUNT(DISTINCT date(played_at)) as d FROM results WHERE user_id=?",
+            "SELECT COUNT(DISTINCT date(played_at)) as d FROM results WHERE user_id=%s",
             (user_id,)).fetchone()["d"]
 
     # Total correct answers ever
@@ -630,7 +601,7 @@ def check_and_award(user_id, result_data):
         if ach_id not in existing and ach_id in ACH_MAP:
             with get_db() as conn2:
                 try:
-                    conn2.execute("INSERT INTO achievements (user_id, ach_id) VALUES (?,?)", (user_id, ach_id))
+                    conn2.execute("INSERT INTO achievements (user_id, ach_id) VALUES (%s,%s) ON CONFLICT DO NOTHING", (user_id, ach_id))
                     newly_earned.append(ACH_MAP[ach_id])
                     existing.add(ach_id)
                 except: pass
@@ -707,7 +678,7 @@ def check_and_award(user_id, result_data):
     if mode == "RapidBee" and pct >= 80 and rapid_count == 1: award("rapid_first_win"); award("first_rapidbee_win")
     # Complete profile: has non-default avatar and 5+ games
     with get_db() as _conn:
-        _uavatar = _conn.execute("SELECT avatar FROM users WHERE id=?", (user_id,)).fetchone()["avatar"]
+        _uavatar = _conn.execute("SELECT avatar FROM users WHERE id=%s", (user_id,)).fetchone()["avatar"]
     if _uavatar != "🐝" and games >= 5: award("complete_profile"); award("choose_avatar")
     # Time-based
     hour = datetime.datetime.now().hour
@@ -821,7 +792,7 @@ def check_and_award(user_id, result_data):
     # Secret: played all 3 modes today
     with get_db() as conn3:
         modes_today = {r["mode"] for r in conn3.execute(
-            "SELECT DISTINCT mode FROM results WHERE user_id=? AND date(played_at)=date('now')",
+            "SELECT DISTINCT mode FROM results WHERE user_id=%s AND date(played_at)=CURRENT_DATE",
             (user_id,)).fetchall()}
     has_qb = any("BeeWise" in m and "RapidBee" not in m and "Practice" not in m for m in modes_today)
     has_rb = "RapidBee" in modes_today
@@ -833,55 +804,20 @@ def check_and_award(user_id, result_data):
     dow = datetime.datetime.now().weekday()
     with get_db() as conn4:
         weekends = conn4.execute(
-            "SELECT COUNT(DISTINCT date(played_at)) as c FROM results WHERE user_id=? AND strftime('%w',played_at) IN ('0','6')",
+            "SELECT COUNT(DISTINCT date(played_at)) as c FROM results WHERE user_id=%s AND strftime('%w',played_at) IN ('0','6')",
             (user_id,)).fetchone()["c"]
     if weekends >= 2: award("weekend_bee")
-    # BeeXam achievements
-    beexam_count = conn.execute(
-        "SELECT COUNT(*) FROM beexam_results WHERE user_id=?", (user_id,)
-    ).fetchone()[0]
-    if beexam_count >= 1:  award("first_beexam")
-    if beexam_count >= 5:  award("beexam_5")
-    if mode == "BeeXam":
-        if pct >= 80:      award("beexam_80")
-        if pct >= 100:     award("beexam_perfect")
-        # Check exam name for specific exam achievements
-        exam_name = result_data.get("exam_name","")
-        if "NEET"    in exam_name: award("beexam_neet")
-        if "JEE"     in exam_name: award("beexam_jee")
-        if "SAT"     in exam_name: award("beexam_sat")
-        cutoff    = result_data.get("cutoff", 0)
-        raw_score = result_data.get("raw_score", 0)
-        if cutoff and raw_score >= cutoff: award("beexam_pass")
-        if result_data.get("used_official_time"): award("beexam_fulltime")
-        # 3 different exams
-        diff_exams = conn.execute("""
-            SELECT COUNT(DISTINCT bp.exam_name) FROM beexam_results br
-            JOIN beexam_papers bp ON bp.id = br.paper_id
-            WHERE br.user_id=?
-        """, (user_id,)).fetchone()[0]
-        if diff_exams >= 3: award("beexam_3diff")
-        # Secret midnight BeeXam
-        hour = __import__("datetime").datetime.now().hour
-        if hour == 0: award("secret_beexam_midnight")
-        # 3 BeeXam in one day
-        today_exams = conn.execute("""
-            SELECT COUNT(*) FROM beexam_results
-            WHERE user_id=? AND DATE(played_at)=DATE('now')
-        """, (user_id,)).fetchone()[0]
-        if today_exams >= 3: award("secret_beexam_3inday")
-
     return newly_earned
 
 def save_result(user_id, mode, score, total, pct, grade, time_taken, answer_log_data, tab_switches=0):
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO results (user_id,mode,score,total,pct,grade,time_taken,tab_switches) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO results (user_id,mode,score,total,pct,grade,time_taken,tab_switches) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
             (user_id, mode, score, total, pct, grade, time_taken, tab_switches))
         result_id = cur.lastrowid
         for entry in answer_log_data:
             conn.execute(
-                "INSERT INTO answer_log (result_id,question,category,correct,user_ans,correct_ans,time_spent) VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO answer_log (result_id,question,category,correct,user_ans,correct_ans,time_spent) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                 (result_id, entry["q"], entry["cat"], entry["correct"],
                  entry.get("user_ans",-1), entry.get("correct_ans",0), entry.get("time_spent",0)))
     return result_id
@@ -946,32 +882,35 @@ def login():
             return redirect("/")
         if action == "register":
             import re
-            if not re.match(r'^[A-Za-z0-9_]{3,30}$', username):
-                flash("Username must be 3–30 characters, letters/numbers/underscores only.", "error")
-                return redirect("/")
             if len(password) < 6:
                 flash("Password must be at least 6 characters.", "error")
                 return redirect("/")
             if not re.search(r'[A-Za-z]', password) or not re.search(r'[0-9]', password):
                 flash("Password must contain both letters and numbers.", "error")
                 return redirect("/")
-            # Admin code still works secretly for admin accounts
-            # Everyone else registers as student — teachers get promoted by admin
-            admin_code = request.form.get("admin_code","").strip()
+            admin_code   = request.form.get("admin_code","").strip()
+            teacher_code = request.form.get("teacher_code","").strip()
             if admin_code and admin_code == ADMIN_CODE:
-                role = "admin"; is_admin = 1
+                role = "admin"
+                is_admin = 1
+            elif teacher_code and teacher_code == TEACHER_CODE:
+                role = "teacher"
+                is_admin = 0
             else:
-                role = "student"; is_admin = 0
+                role = "student"
+                is_admin = 0
+            if admin_code and admin_code != ADMIN_CODE and not teacher_code:
+                flash("Invalid code. Registered as student.", "error")
             try:
                 with get_db() as conn:
-                    conn.execute("INSERT INTO users (username,password,is_admin,role) VALUES (?,?,?,?)",
+                    conn.execute("INSERT INTO users (username,password,is_admin,role) VALUES (%s,%s,%s,%s)",
                                  (username, hash_pw(password), is_admin, role))
-                flash("Account created! Please log in. 🐝", "success")
-            except sqlite3.IntegrityError:
+                flash("Account created! Please log in." + (" (Teacher 🏫)" if role == "teacher" else ""), "success")
+            except psycopg2.errors.UniqueViolation:
                 flash("Username already taken.", "error")
             return redirect("/")
         with get_db() as conn:
-            user = conn.execute("SELECT * FROM users WHERE username=? AND password=?",
+            user = conn.execute("SELECT * FROM users WHERE username=%s AND password=%s",
                                 (username, hash_pw(password))).fetchone()
         if user:
             session.clear()
@@ -984,7 +923,7 @@ def login():
             session["avatar"]     = user["avatar"] or "🐝"
             check_and_award(user["id"], {"pct": 0, "wrong": 0, "mode": "__login__", "time_taken": 0})
             with get_db() as _c:
-                _c.execute("INSERT OR IGNORE INTO achievements (user_id, ach_id) VALUES (?,?)",
+                _c.execute("INSERT INTO achievements (user_id, ach_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                            (user["id"], "first_login"))
             # Redirect teachers to their dashboard
             if role == "teacher":
@@ -1011,7 +950,7 @@ def profile():
             old_pw  = request.form.get("old_password","")
             new_pw  = request.form.get("new_password","")
             with get_db() as conn:
-                user = conn.execute("SELECT * FROM users WHERE id=? AND password=?",
+                user = conn.execute("SELECT * FROM users WHERE id=%s AND password=%s",
                                     (session["user_id"], hash_pw(old_pw))).fetchone()
             if not user:
                 flash("Current password is incorrect.", "error")
@@ -1019,40 +958,40 @@ def profile():
                 flash("New password must be at least 6 characters with letters and numbers.", "error")
             else:
                 with get_db() as conn:
-                    conn.execute("UPDATE users SET password=? WHERE id=?",
+                    conn.execute("UPDATE users SET password=%s WHERE id=%s",
                                  (hash_pw(new_pw), session["user_id"]))
                 flash("Password updated! 🔐", "success")
         elif action == "change_avatar":
             avatar = request.form.get("avatar","🐝")
             if avatar in AVATARS:
                 with get_db() as conn:
-                    conn.execute("UPDATE users SET avatar=? WHERE id=?", (avatar, session["user_id"]))
+                    conn.execute("UPDATE users SET avatar=%s WHERE id=%s", (avatar, session["user_id"]))
                 session["avatar"] = avatar
                 flash("Avatar updated!", "success")
         return redirect("/profile")
 
     with get_db() as conn:
-        user  = conn.execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
+        user  = conn.execute("SELECT * FROM users WHERE id=%s", (session["user_id"],)).fetchone()
         stats = conn.execute(
-            "SELECT COUNT(*) as games, ROUND(AVG(pct)) as avg_pct, MAX(pct) as best, SUM(time_taken) as total_time FROM results WHERE user_id=?",
+            "SELECT COUNT(*) as games, ROUND(AVG(pct)) as avg_pct, MAX(pct) as best, SUM(time_taken) as total_time FROM results WHERE user_id=%s",
             (session["user_id"],)).fetchone()
         cat_stats = conn.execute("""
             SELECT al.category, ROUND(AVG(al.correct)*100) as pct, COUNT(*) as total
             FROM answer_log al JOIN results r ON r.id=al.result_id
-            WHERE r.user_id=? GROUP BY al.category
+            WHERE r.user_id=%s GROUP BY al.category
         """, (session["user_id"],)).fetchall()
         earned = conn.execute(
-            "SELECT ach_id, earned_at FROM achievements WHERE user_id=? ORDER BY earned_at DESC",
+            "SELECT ach_id, earned_at FROM achievements WHERE user_id=%s ORDER BY earned_at DESC",
             (session["user_id"],)).fetchall()
     earned_ids = {e["ach_id"] for e in earned}
     with get_db() as conn:
         my_classes = conn.execute("""
             SELECT c.id, c.name, c.code
             FROM classes c JOIN class_members cm ON cm.class_id=c.id
-            WHERE cm.user_id=?
+            WHERE cm.user_id=%s
         """, (session["user_id"],)).fetchall()
         all_results = conn.execute(
-            "SELECT * FROM results WHERE user_id=? ORDER BY played_at DESC LIMIT 20",
+            "SELECT * FROM results WHERE user_id=%s ORDER BY played_at DESC LIMIT 20",
             (session["user_id"],)).fetchall()
     return render_template("profile.html", user=user, stats=stats, cat_stats=cat_stats,
                            earned=earned, earned_ids=earned_ids, my_classes=my_classes,
@@ -1063,61 +1002,31 @@ def profile():
 @app.route("/dashboard")
 @require_login
 def dashboard():
-    uid    = session["user_id"]
-    streak = update_streak(uid)
+    streak = update_streak(session["user_id"])
     with get_db() as conn:
         history  = conn.execute(
-            "SELECT * FROM results WHERE user_id=? ORDER BY played_at DESC LIMIT 10",
-            (uid,)).fetchall()
+            "SELECT * FROM results WHERE user_id=%s ORDER BY played_at DESC LIMIT 10",
+            (session["user_id"],)).fetchall()
         stats    = conn.execute(
-            "SELECT COUNT(*) as games, ROUND(AVG(pct)) as avg_pct, MAX(pct) as best FROM results WHERE user_id=?",
-            (uid,)).fetchone()
+            "SELECT COUNT(*) as games, ROUND(AVG(pct)) as avg_pct, MAX(pct) as best FROM results WHERE user_id=%s",
+            (session["user_id"],)).fetchone()
         cat_stats = conn.execute("""
             SELECT al.category, COUNT(*) as total_q, SUM(al.correct) as correct_q,
                    ROUND(AVG(al.correct)*100) as pct
             FROM answer_log al JOIN results r ON r.id=al.result_id
-            WHERE r.user_id=? GROUP BY al.category ORDER BY pct ASC
-        """, (uid,)).fetchall()
+            WHERE r.user_id=%s GROUP BY al.category ORDER BY pct ASC
+        """, (session["user_id"],)).fetchall()
         progress = list(reversed(conn.execute(
-            "SELECT pct, mode, played_at FROM results WHERE user_id=? ORDER BY played_at DESC LIMIT 10",
-            (uid,)).fetchall()))
+            "SELECT pct, mode, played_at FROM results WHERE user_id=%s ORDER BY played_at DESC LIMIT 10",
+            (session["user_id"],)).fetchall()))
         recent_badges = conn.execute(
-            "SELECT ach_id, earned_at FROM achievements WHERE user_id=? ORDER BY earned_at DESC LIMIT 3",
-            (uid,)).fetchall()
-        user = conn.execute("SELECT avatar, streak FROM users WHERE id=?", (uid,)).fetchone()
-
-        # Scheduled tests — find classes this student belongs to,
-        # then show upcoming tests for those classes (or all-student tests)
-        try:
-            scheduled_tests = conn.execute("""
-                SELECT st.id, st.scheduled_at, st.note,
-                       qr.title   AS room_title,
-                       qr.code    AS room_code,
-                       qr.id      AS room_id,
-                       c.name     AS class_name,
-                       u.username AS teacher_name
-                FROM scheduled_tests st
-                JOIN quiz_rooms qr ON qr.id = st.room_id
-                LEFT JOIN classes c ON c.id = st.class_id
-                JOIN users u ON u.id = st.teacher_id
-                WHERE st.scheduled_at >= datetime('now')
-                  AND (
-                    st.class_id IS NULL
-                    OR st.class_id IN (
-                        SELECT class_id FROM class_members WHERE user_id=?
-                    )
-                  )
-                ORDER BY st.scheduled_at ASC
-                LIMIT 5
-            """, (uid,)).fetchall()
-        except Exception:
-            scheduled_tests = []
-
+            "SELECT ach_id, earned_at FROM achievements WHERE user_id=%s ORDER BY earned_at DESC LIMIT 3",
+            (session["user_id"],)).fetchall()
+        user = conn.execute("SELECT avatar, streak FROM users WHERE id=%s", (session["user_id"],)).fetchone()
     return render_template("dashboard.html", history=history, stats=stats,
                            cat_stats=cat_stats, progress=progress,
                            recent_badges=recent_badges, ach_map=ACH_MAP,
-                           streak=streak, user=user, categories=CATEGORIES,
-                           scheduled_tests=scheduled_tests)
+                           streak=streak, user=user, categories=CATEGORIES)
 
 # ── Mode ─────────────────────────────────────────────────────────────
 @app.route("/mode")
@@ -1126,35 +1035,23 @@ def mode():
     with get_db() as conn:
         exams = conn.execute("""
             SELECT * FROM exam_sessions WHERE active=1
-            AND datetime('now') BETWEEN datetime(start_time) AND datetime(end_time)
+            AND NOW() BETWEEN datetime(start_time) AND datetime(end_time)
         """).fetchall()
-    from collections import Counter
-    cat_counts = Counter(q["cat"] for q in ALL_QUESTIONS)
-    return render_template("mode.html", categories=CATEGORIES, exams=exams, cat_counts=cat_counts)
+    return render_template("mode.html", categories=CATEGORIES, exams=exams)
 
 # ── BeeWise ──────────────────────────────────────────────────────────
 @app.route("/quiz")
 @require_login
 def quiz():
-    import json as _j
-    uid = session["user_id"]
-    qs  = get_shuffled_questions(QUIZ_LIMIT, balanced=True)
-    with get_db() as conn:
-        conn.execute("DELETE FROM bw_temp WHERE user_id=?", (uid,))
-        conn.execute("INSERT INTO bw_temp (user_id, questions_json) VALUES (?,?)",
-                     (uid, _j.dumps(qs)))
+    session["questions"]    = get_shuffled_questions(QUIZ_LIMIT, balanced=True)
     session["quiz_start"]   = time.time()
     session["tab_switches"] = 0
-    return render_template("quiz.html", questions=qs, quiz_time=QUIZ_TIME)
+    return render_template("quiz.html", questions=session["questions"], quiz_time=QUIZ_TIME)
 
 @app.route("/submit_quiz", methods=["POST"])
 @require_login
 def submit_quiz():
-    import json as _j
-    uid = session["user_id"]
-    with get_db() as conn:
-        row = conn.execute("SELECT questions_json FROM bw_temp WHERE user_id=?", (uid,)).fetchone()
-    qs         = _j.loads(row["questions_json"]) if row else []
+    qs         = session.get("questions", [])
     start      = session.get("quiz_start", time.time())
     time_taken = int(time.time() - start)
     tab_sw     = int(request.form.get("tab_switches", 0))
@@ -1174,9 +1071,7 @@ def submit_quiz():
     save_result(session["user_id"], "BeeWise", score, total, pct, grade, time_taken, log, tab_sw)
     streak  = update_streak(session["user_id"])
     new_ach = check_and_award(session["user_id"], {"pct":pct,"wrong":total-score,"mode":"BeeWise","time_taken":time_taken})
-    with get_db() as conn:
-        conn.execute("DELETE FROM bw_temp WHERE user_id=?", (uid,))
-    for k in ("quiz_start","tab_switches"): session.pop(k, None)
+    for k in ("questions","quiz_start","tab_switches"): session.pop(k, None)
     return render_template("result.html", mode="BeeWise", score=score, wrong=total-score,
                            total=total, pct=pct, grade=grade, msg=msg,
                            time_taken=time_taken, tab_switches=tab_sw,
@@ -1192,9 +1087,9 @@ def rapidbee():
         qs = get_shuffled_questions(RAPID_LIMIT, balanced=True)
         # Store bulky data server-side, keep only index/score/timing in session
         with get_db() as conn:
-            conn.execute("DELETE FROM rb_temp WHERE user_id=?", (uid,))
+            conn.execute("DELETE FROM rb_temp WHERE user_id=%s", (uid,))
             conn.execute("""INSERT INTO rb_temp (user_id, questions_json, log_json, score, tabs)
-                            VALUES (?,?,?,0,0)""",
+                            VALUES (%s,%s,%s,0,0)""",
                          (uid, __import__("json").dumps(qs), __import__("json").dumps([])))
         session["rb_index"]   = 0
         session["rb_end"]     = time.time() + RAPID_TIME
@@ -1203,7 +1098,7 @@ def rapidbee():
     if request.method == "POST":
         import json
         with get_db() as conn:
-            row = conn.execute("SELECT * FROM rb_temp WHERE user_id=?", (uid,)).fetchone()
+            row = conn.execute("SELECT * FROM rb_temp WHERE user_id=%s", (uid,)).fetchone()
         if not row:
             flash("Session expired. Starting over.", "error")
             return redirect("/rapidbee")
@@ -1221,7 +1116,7 @@ def rapidbee():
         new_score = row["score"] + (1 if correct else 0)
         new_tabs  = int(request.form.get("tab_switches", 0))
         with get_db() as conn:
-            conn.execute("UPDATE rb_temp SET log_json=?, score=?, tabs=? WHERE user_id=?",
+            conn.execute("UPDATE rb_temp SET log_json=%s, score=%s, tabs=%s WHERE user_id=%s",
                          (__import__("json").dumps(log), new_score, new_tabs, uid))
         session["rb_index"]   = index + 1
         session["rb_q_start"] = time.time()
@@ -1229,7 +1124,7 @@ def rapidbee():
     # Load current state
     import json
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM rb_temp WHERE user_id=?", (uid,)).fetchone()
+        row = conn.execute("SELECT * FROM rb_temp WHERE user_id=%s", (uid,)).fetchone()
     if not row:
         return redirect("/rapidbee")
     qs    = json.loads(row["questions_json"])
@@ -1250,7 +1145,7 @@ def rapidbee():
         streak  = update_streak(uid)
         new_ach = check_and_award(uid,{"pct":pct,"wrong":total-score,"mode":"RapidBee","time_taken":time_taken})
         with get_db() as conn:
-            conn.execute("DELETE FROM rb_temp WHERE user_id=?", (uid,))
+            conn.execute("DELETE FROM rb_temp WHERE user_id=%s", (uid,))
         session.pop("rb_index", None)
         session.pop("rb_end", None)
         session.pop("rb_q_start", None)
@@ -1265,37 +1160,30 @@ def rapidbee():
                            total=len(qs), left=left)
 
 # ── Practice ─────────────────────────────────────────────────────────
+@app.route("/practice/setup")
+@require_login
+def practice_setup():
+    cat = request.args.get("cat","")
+    if cat not in CATEGORIES:
+        flash("Invalid category.", "error")
+        return redirect("/mode")
+    return render_template("practice_setup.html", cat=cat)
+
 @app.route("/practice")
 @require_login
 def practice():
     import random
     cat    = request.args.get("cat","")
     chosen = int(request.args.get("timer", 180))
-    chosen = max(30, min(chosen, 600))
+    chosen = max(30, min(chosen, 900))
     qcount = int(request.args.get("qcount", 10))
-    qcount = qcount if qcount in (10,15,25) else 10
+    qcount = qcount if qcount in (10, 15, 25) else 10
 
     if cat not in CATEGORIES:
         flash("Invalid category.", "error")
         return redirect("/mode")
 
-    # If same category is already active and user just changed the timer,
-    # only update the timer — don't wipe the questions or progress
-    if (session.get("pr_cat") == cat
-            and session.get("pr_qs")
-            and request.args.get("timer")
-            and session.get("pr_index", 0) > 0):
-        session["pr_end"]      = time.time() + chosen
-        session["pr_duration"] = chosen
-        q    = session["pr_qs"][session["pr_index"]]
-        left = chosen
-        return render_template("practice.html", q=q,
-                               num=session["pr_index"]+1,
-                               total=len(session["pr_qs"]),
-                               cat=cat, left=left, chosen=chosen,
-                               qcount=len(session["pr_qs"]))
-
-    # Fresh start
+    # Clear old session
     for k in ("pr_qs","pr_index","pr_score","pr_end","pr_log","pr_q_start","pr_cat","pr_duration"):
         session.pop(k, None)
 
@@ -1318,19 +1206,8 @@ def practice():
     session["pr_q_start"]  = time.time()
 
     return render_template("practice.html", q=final[0], num=1,
-                           total=len(final), cat=cat, left=chosen,
-                           chosen=chosen, qcount=qcount)
-
-@app.route("/practice/set_timer")
-@require_login
-def practice_set_timer():
-    """Update only the timer without restarting the quiz — called by JS fetch."""
-    chosen = int(request.args.get("timer", 180))
-    chosen = max(30, min(chosen, 600))
-    session["pr_end"]      = time.time() + chosen
-    session["pr_duration"] = chosen
-    return {"ok": True}
-
+                           total=len(final), cat=cat,
+                           left=chosen, chosen=chosen, qcount=qcount)
 
 @app.route("/submit_practice", methods=["POST"])
 @require_login
@@ -1460,7 +1337,7 @@ def admin():
         for room in quiz_rooms:
             r = dict(room)
             try:
-                qs = _j.loads(conn.execute("SELECT questions FROM quiz_rooms WHERE id=?", (r["id"],)).fetchone()["questions"])
+                qs = _j.loads(conn.execute("SELECT questions FROM quiz_rooms WHERE id=%s", (r["id"],)).fetchone()["questions"])
                 r["q_count"] = len(qs)
             except:
                 r["q_count"] = "?"
@@ -1477,7 +1354,7 @@ def admin():
                 FROM class_members cm
                 JOIN users u ON u.id = cm.user_id
                 LEFT JOIN results r ON r.user_id = u.id
-                WHERE cm.class_id = ?
+                WHERE cm.class_id = %s
                 GROUP BY u.id ORDER BY best_pct DESC
             """, (cl["id"],)).fetchall()
             class_members_detail[cl["id"]] = [dict(m) for m in members]
@@ -1495,10 +1372,6 @@ def admin():
         count_map[p["exam_name"]] = count_map.get(p["exam_name"], 0) + 1
     beexam_exam_types = [{"name": et["name"], "group": et["exam_group"],
                           "paper_count": count_map.get(et["name"], 0)} for et in beexam_exam_types_raw]
-    with get_db() as conn:
-        jigsaw_levels = conn.execute(
-            "SELECT * FROM jigsaw_levels ORDER BY order_num ASC"
-        ).fetchall()
     return render_template("admin.html", students=students, hardest=hardest,
                            flagged=flagged, recent_results=recent_results,
                            total_games=total_games, total_users=total_users,
@@ -1508,7 +1381,6 @@ def admin():
                            quiz_rooms=quiz_rooms,
                            beexam_papers=beexam_papers,
                            beexam_exam_types=beexam_exam_types,
-                           jigsaw_levels=jigsaw_levels,
                            categories=["HTML","CSS","Python","SQL","Flask","General"])
 
 @app.route("/admin/student/<int:uid>")
@@ -1516,24 +1388,24 @@ def admin():
 @require_admin
 def student_report(uid):
     with get_db() as conn:
-        student = conn.execute("SELECT * FROM users WHERE id=? AND is_admin=0", (uid,)).fetchone()
+        student = conn.execute("SELECT * FROM users WHERE id=%s AND is_admin=0", (uid,)).fetchone()
         if not student: flash("Student not found.", "error"); return redirect("/admin")
         results = conn.execute(
-            "SELECT * FROM results WHERE user_id=? ORDER BY played_at DESC", (uid,)).fetchall()
+            "SELECT * FROM results WHERE user_id=%s ORDER BY played_at DESC", (uid,)).fetchall()
         stats = conn.execute(
-            "SELECT COUNT(*) as games, ROUND(AVG(pct)) as avg_pct, MAX(pct) as best, MIN(pct) as worst, SUM(time_taken) as total_time FROM results WHERE user_id=?",
+            "SELECT COUNT(*) as games, ROUND(AVG(pct)) as avg_pct, MAX(pct) as best, MIN(pct) as worst, SUM(time_taken) as total_time FROM results WHERE user_id=%s",
             (uid,)).fetchone()
         cat_stats = conn.execute("""
             SELECT al.category, COUNT(*) as total, SUM(al.correct) as correct,
                    ROUND(AVG(al.correct)*100) as pct
             FROM answer_log al JOIN results r ON r.id=al.result_id
-            WHERE r.user_id=? GROUP BY al.category ORDER BY pct DESC
+            WHERE r.user_id=%s GROUP BY al.category ORDER BY pct DESC
         """, (uid,)).fetchall()
         earned = conn.execute(
-            "SELECT ach_id, earned_at FROM achievements WHERE user_id=? ORDER BY earned_at DESC",
+            "SELECT ach_id, earned_at FROM achievements WHERE user_id=%s ORDER BY earned_at DESC",
             (uid,)).fetchall()
         progress = list(reversed(conn.execute(
-            "SELECT pct, mode, played_at FROM results WHERE user_id=? ORDER BY played_at DESC LIMIT 15",
+            "SELECT pct, mode, played_at FROM results WHERE user_id=%s ORDER BY played_at DESC LIMIT 15",
             (uid,)).fetchall()))
     return render_template("student_report.html", student=student, results=results,
                            stats=stats, cat_stats=cat_stats, earned=earned,
@@ -1569,7 +1441,7 @@ def add_question():
     if not all([q,o0,o1,o2,o3]):
         flash("All fields are required.", "error"); return redirect("/admin")
     with get_db() as conn:
-        conn.execute("INSERT INTO questions_db (question,opt0,opt1,opt2,opt3,answer,category) VALUES (?,?,?,?,?,?,?)",
+        conn.execute("INSERT INTO questions_db (question,opt0,opt1,opt2,opt3,answer,category) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                      (q,o0,o1,o2,o3,0,cat))
     flash(f"Question added to {cat}! 🐝", "success")
     return redirect("/admin")
@@ -1590,7 +1462,7 @@ def import_csv():
                 q,o0,o1,o2,o3 = (row.get(k,"").strip() for k in ("question","opt0","opt1","opt2","opt3"))
                 cat = row.get("category","General").strip()
                 if not all([q,o0,o1,o2,o3]): errors+=1; continue
-                conn.execute("INSERT INTO questions_db (question,opt0,opt1,opt2,opt3,answer,category) VALUES (?,?,?,?,?,?,?)",
+                conn.execute("INSERT INTO questions_db (question,opt0,opt1,opt2,opt3,answer,category) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                              (q,o0,o1,o2,o3,0,cat))
                 count += 1
             except: errors += 1
@@ -1601,7 +1473,7 @@ def import_csv():
 @require_login
 @require_admin
 def delete_question(qid):
-    with get_db() as conn: conn.execute("DELETE FROM questions_db WHERE id=?", (qid,))
+    with get_db() as conn: conn.execute("DELETE FROM questions_db WHERE id=%s", (qid,))
     flash("Question deleted.", "success"); return redirect("/admin")
 
 @app.route("/admin/delete_student/<int:uid>", methods=["POST"])
@@ -1609,10 +1481,10 @@ def delete_question(qid):
 @require_admin
 def delete_student(uid):
     with get_db() as conn:
-        conn.execute("DELETE FROM answer_log WHERE result_id IN (SELECT id FROM results WHERE user_id=?)",(uid,))
-        conn.execute("DELETE FROM results WHERE user_id=?",(uid,))
-        conn.execute("DELETE FROM achievements WHERE user_id=?",(uid,))
-        conn.execute("DELETE FROM users WHERE id=? AND is_admin=0",(uid,))
+        conn.execute("DELETE FROM answer_log WHERE result_id IN (SELECT id FROM results WHERE user_id=%s)",(uid,))
+        conn.execute("DELETE FROM results WHERE user_id=%s",(uid,))
+        conn.execute("DELETE FROM achievements WHERE user_id=%s",(uid,))
+        conn.execute("DELETE FROM users WHERE id=%s AND is_admin=0",(uid,))
     flash("Student removed.", "success"); return redirect("/admin")
 
 @app.route("/admin/create_exam", methods=["POST"])
@@ -1623,7 +1495,7 @@ def create_exam():
     if not all([title,start,end]):
         flash("All fields required.", "error"); return redirect("/admin")
     with get_db() as conn:
-        conn.execute("INSERT INTO exam_sessions (title,start_time,end_time,created_by) VALUES (?,?,?,?)",
+        conn.execute("INSERT INTO exam_sessions (title,start_time,end_time,created_by) VALUES (%s,%s,%s,%s)",
                      (title,start,end,session["user_id"]))
     flash(f"Exam '{title}' scheduled! 🎓", "success"); return redirect("/admin")
 
@@ -1631,7 +1503,7 @@ def create_exam():
 @require_login
 @require_admin
 def delete_exam(eid):
-    with get_db() as conn: conn.execute("DELETE FROM exam_sessions WHERE id=?", (eid,))
+    with get_db() as conn: conn.execute("DELETE FROM exam_sessions WHERE id=%s", (eid,))
     flash("Exam deleted.", "success"); return redirect("/admin")
 
 # ════════════════════════════════════════════════════════════════════
@@ -1658,7 +1530,7 @@ def ai_generate_questions():
         for q in questions:
             try:
                 conn.execute(
-                    "INSERT INTO questions_db (question,opt0,opt1,opt2,opt3,answer,category) VALUES (?,?,?,?,?,?,?)",
+                    "INSERT INTO questions_db (question,opt0,opt1,opt2,opt3,answer,category) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                     (q["question"], q["opt0"], q["opt1"], q["opt2"], q["opt3"], 0, category)
                 )
                 saved += 1
@@ -1684,11 +1556,11 @@ def ai_chat():
             SELECT al.category, ROUND(AVG(al.correct)*100) as pct
             FROM answer_log al
             JOIN results r ON r.id = al.result_id
-            WHERE r.user_id = ?
+            WHERE r.user_id = %s
             GROUP BY al.category ORDER BY pct ASC
         """, (session["user_id"],)).fetchall()
         total_games = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=?",
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s",
             (session["user_id"],)).fetchone()["c"]
 
     weak = [f"{r['category']} ({r['pct']}%)" for r in cat_stats if r['pct'] and r['pct'] < 70]
@@ -1702,16 +1574,16 @@ def ai_chat():
 
     # Award BeeBot achievements
     with get_db() as _c:
-        _c.execute("INSERT OR IGNORE INTO achievements (user_id, ach_id) VALUES (?,?)",
+        _c.execute("INSERT INTO achievements (user_id, ach_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                    (session["user_id"], "ask_beebot"))
-        _c.execute("INSERT OR IGNORE INTO achievements (user_id, ach_id) VALUES (?,?)",
+        _c.execute("INSERT INTO achievements (user_id, ach_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                    (session["user_id"], "beebot_first_reply"))
         beebot_asks = _c.execute(
-            "SELECT COUNT(*) as c FROM achievements WHERE user_id=? AND ach_id='ask_beebot'",
+            "SELECT COUNT(*) as c FROM achievements WHERE user_id=%s AND ach_id='ask_beebot'",
             (session["user_id"],)).fetchone()["c"]
     if beebot_asks >= 10:
         with get_db() as _c:
-            _c.execute("INSERT OR IGNORE INTO achievements (user_id, ach_id) VALUES (?,?)",
+            _c.execute("INSERT INTO achievements (user_id, ach_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                        (session["user_id"], "beebot_10"))
 
     return jsonify({"reply": reply})
@@ -1724,23 +1596,6 @@ def ai_chat():
 def customizebee():
     """CustomizeBee setup page — upload CSV or generate via AI."""
     return render_template("customizebee.html")
-
-@app.route("/customizebee/pick_format")
-@require_login
-def customizebee_pick_format():
-    """Show format picker for CustomizeBee."""
-    import json as _j
-    uid = session["user_id"]
-    with get_db() as conn:
-        row = conn.execute("SELECT total FROM cb_sessions WHERE user_id=?", (uid,)).fetchone()
-    if not row:
-        flash("No questions loaded yet.", "error")
-        return redirect("/customizebee")
-    return render_template("format_picker.html",
-        mode="customizebee",
-        beewise_url="/customizebee/quiz?fmt=beewise",
-        rapidbee_url="/customizebee/quiz?fmt=rapidbee",
-        back_url="/customizebee")
 
 @app.route("/customizebee/from_csv", methods=["POST"])
 @require_login
@@ -1819,9 +1674,9 @@ def customizebee_csv():
         import json as _json
         end_time = time.time() + 600
         with get_db() as conn:
-            conn.execute("""INSERT OR REPLACE INTO cb_sessions
+            conn.execute("""INSERT INTO cb_sessions
                 (user_id, questions, idx, score, log, total, end_time)
-                VALUES (?,?,0,0,'[]',?,?)""",
+                VALUES (%s,%s,0,0,'[]',%s,%s)""",
                 (session["user_id"], _json.dumps(questions), len(questions), end_time))
         session["cb_active"] = True
         msg = f"Loaded {len(questions)} questions!"
@@ -1830,11 +1685,11 @@ def customizebee_csv():
         flash(msg, "success")
         # Award CSV upload achievements
         with get_db() as _c:
-            _c.execute("INSERT OR IGNORE INTO achievements (user_id, ach_id) VALUES (?,?)",
+            _c.execute("INSERT INTO achievements (user_id, ach_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                        (session["user_id"], "try_customizebee"))
-            _c.execute("INSERT OR IGNORE INTO achievements (user_id, ach_id) VALUES (?,?)",
+            _c.execute("INSERT INTO achievements (user_id, ach_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                        (session["user_id"], "first_csv_upload"))
-        return redirect("/customizebee/pick_format")
+        return redirect("/customizebee/quiz")
     except Exception as e:
         flash(f"Could not read CSV: {str(e)}", "error")
         return redirect("/customizebee")
@@ -1870,79 +1725,67 @@ def customizebee_ai():
     import json as _json
     end_time = time.time() + 600
     with get_db() as conn:
-        conn.execute("""INSERT OR REPLACE INTO cb_sessions
+        conn.execute("""INSERT INTO cb_sessions
             (user_id, questions, idx, score, log, total, end_time)
-            VALUES (?,?,0,0,'[]',?,?)""",
+            VALUES (%s,%s,0,0,'[]',%s,%s)""",
             (session["user_id"], _json.dumps(final), len(final), end_time))
     session["cb_active"] = True
-    return redirect("/customizebee/pick_format")
+    return redirect("/customizebee/quiz")
 
 @app.route("/customizebee/quiz", methods=["GET","POST"])
 @require_login
 def customizebee_quiz():
-    """Run the custom quiz — supports beewise (all at once) and rapidbee (one at a time) formats."""
-    import json as _j
+    """Run the custom quiz — questions stored in DB to avoid session cookie size limit."""
+    import json as _json
     uid = session["user_id"]
 
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM cb_sessions WHERE user_id=?", (uid,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM cb_sessions WHERE user_id=%s", (uid,)
+        ).fetchone()
 
     if not row:
         flash("No questions loaded. Please upload a CSV or generate via AI.", "error")
         return redirect("/customizebee")
 
-    qs    = _j.loads(row["questions"])
+    qs    = _json.loads(row["questions"])
     idx   = row["idx"]
     score = row["score"]
-    log   = _j.loads(row["log"])
+    log   = _json.loads(row["log"])
     total = row["total"]
     end_t = row["end_time"]
 
-    # Get or set format — default to beewise
-    fmt = request.args.get("fmt") or session.get("cb_fmt","beewise")
-    if request.args.get("fmt"):
-        session["cb_fmt"] = fmt
-
-    # ── BEEWISE FORMAT (all questions at once) ────────────────────────
-    if fmt == "beewise":
-        if request.method == "POST":
-            score = 0
-            log   = []
-            for i, q in enumerate(qs):
-                chosen = int(request.form.get(f"q{i}", -1))
-                correct = (chosen == q["a"])
-                if correct: score += 1
-                log.append({"q":q["q"],"options":q["options"],"chosen":chosen,"correct":q["a"],"cat":q.get("cat","Custom")})
-            with get_db() as conn:
-                conn.execute("DELETE FROM cb_sessions WHERE user_id=?", (uid,))
-            session.pop("cb_fmt", None)
-            pct = round(score / total * 100) if total else 0
-            return render_template("customizebee_result.html", score=score, total=total, pct=pct, log=log)
-
-        left = max(0, int(end_t - time.time()))
-        return render_template("customizebee_beewise.html", questions=qs, total=total, left=left)
-
-    # ── RAPIDBEE FORMAT (one at a time) ──────────────────────────────
     if request.method == "POST":
         q      = qs[idx]
         chosen = int(request.form.get("answer", -1))
-        if chosen == q["a"]: score += 1
-        log.append({"q":q["q"],"options":q["options"],"chosen":chosen,"correct":q["a"],"cat":q.get("cat","Custom")})
+        if chosen == q["a"]:
+            score += 1
+        log.append({
+            "q":       q["q"],
+            "options": q["options"],
+            "chosen":  chosen,
+            "correct": q["a"],
+            "cat":     q.get("cat","Custom")
+        })
         idx += 1
         with get_db() as conn:
-            conn.execute("UPDATE cb_sessions SET idx=?,score=?,log=? WHERE user_id=?",
-                         (idx, score, _j.dumps(log), uid))
+            conn.execute(
+                "UPDATE cb_sessions SET idx=%s, score=%s, log=%s WHERE user_id=%s",
+                (idx, score, _json.dumps(log), uid)
+            )
 
+    # Finished%s
     if idx >= total or time.time() > end_t:
         pct = round(score / total * 100) if total else 0
         with get_db() as conn:
-            conn.execute("DELETE FROM cb_sessions WHERE user_id=?", (uid,))
-        session.pop("cb_fmt", None)
-        return render_template("customizebee_result.html", score=score, total=total, pct=pct, log=log)
+            conn.execute("DELETE FROM cb_sessions WHERE user_id=%s", (uid,))
+        return render_template("customizebee_result.html",
+                               score=score, total=total, pct=pct, log=log)
 
     q    = qs[idx]
     left = max(0, int(end_t - time.time()))
-    return render_template("customizebee_quiz.html", q=q, num=idx+1, total=total, left=left)
+    return render_template("customizebee_quiz.html",
+                           q=q, num=idx+1, total=total, left=left)
 
 # ── Edit question ─────────────────────────────────────────────────────
 @app.route("/admin/edit_question/<int:qid>", methods=["POST"])
@@ -1960,7 +1803,7 @@ def edit_question(qid):
         flash("All fields are required.", "error")
         return redirect("/admin")
     with get_db() as conn:
-        conn.execute("UPDATE questions_db SET question=?,opt0=?,opt1=?,opt2=?,opt3=?,category=? WHERE id=?",
+        conn.execute("UPDATE questions_db SET question=%s,opt0=%s,opt1=%s,opt2=%s,opt3=%s,category=%s WHERE id=%s",
                      (q, o0, o1, o2, o3, cat, qid))
     flash("Question updated! 🐝", "success")
     return redirect("/admin")
@@ -1975,13 +1818,13 @@ def init_classes():
                 code       TEXT UNIQUE NOT NULL,
                 created_by INTEGER NOT NULL,
                 admin_id   INTEGER,
-                created    TEXT DEFAULT (datetime('now'))
+                created    TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS class_members (
                 id       INTEGER PRIMARY KEY AUTOINCREMENT,
                 class_id INTEGER NOT NULL,
                 user_id  INTEGER NOT NULL,
-                joined   TEXT DEFAULT (datetime('now')),
+                joined   TEXT DEFAULT (NOW()),
                 UNIQUE(class_id, user_id)
             );
         """)
@@ -1998,43 +1841,43 @@ init_classes()
 @require_admin
 def create_class():
     if request.method == "GET":
-        return redirect("/admin?tab=classes")
+        return redirect("/admin%stab=classes")
     import random as _rnd, string as _str
     name = request.form.get("class_name","").strip()
     if not name:
         flash("Class name is required.", "error")
-        return redirect("/admin?tab=classes")
+        return redirect("/admin%stab=classes")
     code = ''.join(_rnd.choices(_str.ascii_uppercase + _str.digits, k=6))
     try:
         with get_db() as conn:
-            conn.execute("INSERT INTO classes (name,code,created_by,admin_id) VALUES (?,?,?,?)",
+            conn.execute("INSERT INTO classes (name,code,created_by,admin_id) VALUES (%s,%s,%s,%s)",
                          (name, code, session["user_id"], session["user_id"]))
         flash(f"Class '{name}' created! Share this code with students: {code} 🎓", "success")
     except Exception as e:
         flash(f"Error creating class: {str(e)}", "error")
-    return redirect("/admin?tab=classes")
+    return redirect("/admin%stab=classes")
 
 @app.route("/admin/delete_class/<int:cid>", methods=["POST"])
 @require_login
 @require_admin
 def delete_class(cid):
     with get_db() as conn:
-        conn.execute("DELETE FROM class_members WHERE class_id=?", (cid,))
-        conn.execute("DELETE FROM classes WHERE id=?", (cid,))
+        conn.execute("DELETE FROM class_members WHERE class_id=%s", (cid,))
+        conn.execute("DELETE FROM classes WHERE id=%s", (cid,))
     flash("Class deleted.", "success")
-    return redirect("/admin?tab=classes")
+    return redirect("/admin%stab=classes")
 
 @app.route("/join_class", methods=["POST"])
 @require_login
 def join_class():
     code = request.form.get("class_code","").strip().upper()
     with get_db() as conn:
-        cls = conn.execute("SELECT * FROM classes WHERE code=?", (code,)).fetchone()
+        cls = conn.execute("SELECT * FROM classes WHERE code=%s", (code,)).fetchone()
         if not cls:
             flash("Invalid class code. Check and try again.", "error")
             return redirect("/profile")
         try:
-            conn.execute("INSERT INTO class_members (class_id,user_id) VALUES (?,?)",
+            conn.execute("INSERT INTO class_members (class_id,user_id) VALUES (%s,%s)",
                          (cls["id"], session["user_id"]))
             flash(f"Joined class '{cls['name']}'! 🎓", "success")
         except:
@@ -2045,7 +1888,7 @@ def join_class():
 @require_login
 def leave_class(cid):
     with get_db() as conn:
-        conn.execute("DELETE FROM class_members WHERE class_id=? AND user_id=?",
+        conn.execute("DELETE FROM class_members WHERE class_id=%s AND user_id=%s",
                      (cid, session["user_id"]))
     flash("Left class.", "success")
     return redirect("/profile")
@@ -2060,7 +1903,7 @@ def leave_class(cid):
 @require_admin
 def create_room():
     if request.method == "GET":
-        return redirect("/admin?tab=rooms")
+        return redirect("/admin%stab=rooms")
     import random as _r, string as _s, json as _j, csv as _csv, io as _io
 
     title      = request.form.get("room_title","").strip()
@@ -2069,7 +1912,7 @@ def create_room():
 
     if not title:
         flash("Room title is required.", "error")
-        return redirect("/admin?tab=rooms")
+        return redirect("/admin%stab=rooms")
 
     questions = []
 
@@ -2077,7 +1920,7 @@ def create_room():
         f = request.files.get("room_csv")
         if not f or f.filename == "":
             flash("Please upload a CSV file.", "error")
-            return redirect("/admin?tab=rooms")
+            return redirect("/admin%stab=rooms")
         try:
             raw = f.stream.read()
             for enc in ("utf-8-sig","utf-8","latin-1"):
@@ -2104,50 +1947,50 @@ def create_room():
                     })
         except Exception as e:
             flash(f"CSV error: {e}", "error")
-            return redirect("/admin?tab=rooms")
+            return redirect("/admin%stab=rooms")
 
     if not questions:
         flash("No valid questions found in the CSV.", "error")
-        return redirect("/admin?tab=rooms")
+        return redirect("/admin%stab=rooms")
 
     # Store RAW questions (unshuffled) — shuffling happens per student at quiz time
     code = ''.join(_r.choices(_s.ascii_uppercase + _s.digits, k=6))
     try:
         with get_db() as conn:
             conn.execute(
-                "INSERT INTO quiz_rooms (title,code,created_by,questions,time_limit) VALUES (?,?,?,?,?)",
+                "INSERT INTO quiz_rooms (title,code,created_by,questions,time_limit) VALUES (%s,%s,%s,%s,%s)",
                 (title, code, session["user_id"], _j.dumps(questions), time_limit)
             )
         flash(f"Room '{title}' created! Code: {code}", "success")
     except Exception as e:
         flash(f"Error: {e}", "error")
-    return redirect("/admin?tab=rooms")
+    return redirect("/admin%stab=rooms")
 
 @app.route("/admin/delete_room/<int:rid>", methods=["POST"])
 @require_login
 @require_admin
 def delete_room(rid):
     with get_db() as conn:
-        conn.execute("DELETE FROM room_results WHERE room_id=?", (rid,))
-        conn.execute("DELETE FROM quiz_rooms WHERE id=?", (rid,))
+        conn.execute("DELETE FROM room_results WHERE room_id=%s", (rid,))
+        conn.execute("DELETE FROM quiz_rooms WHERE id=%s", (rid,))
     flash("Room deleted.", "success")
-    return redirect("/admin?tab=rooms")
+    return redirect("/admin%stab=rooms")
 
 @app.route("/admin/room_results/<int:rid>")
 @require_login
 @require_admin
 def admin_room_results(rid):
     with get_db() as conn:
-        room = conn.execute("SELECT * FROM quiz_rooms WHERE id=?", (rid,)).fetchone()
+        room = conn.execute("SELECT * FROM quiz_rooms WHERE id=%s", (rid,)).fetchone()
         if not room:
             flash("Room not found.", "error")
-            return redirect("/admin?tab=rooms")
+            return redirect("/admin%stab=rooms")
         results = conn.execute("""
             SELECT u.username, u.avatar, rr.score, rr.total, rr.pct,
                    rr.time_taken, rr.finished
             FROM room_results rr
             JOIN users u ON u.id = rr.user_id
-            WHERE rr.room_id = ?
+            WHERE rr.room_id = %s
             ORDER BY rr.pct DESC, rr.time_taken ASC
         """, (rid,)).fetchall()
     return render_template("room_results.html", room=room, results=results)
@@ -2160,7 +2003,7 @@ def room_join():
         code = request.form.get("room_code","").strip().upper()
         with get_db() as conn:
             room = conn.execute(
-                "SELECT * FROM quiz_rooms WHERE code=? AND active=1", (code,)
+                "SELECT * FROM quiz_rooms WHERE code=%s AND active=1", (code,)
             ).fetchone()
         if not room:
             flash("Room not found. Check the code and try again.", "error")
@@ -2168,7 +2011,7 @@ def room_join():
         # Check already submitted
         with get_db() as conn:
             already = conn.execute(
-                "SELECT id FROM room_results WHERE room_id=? AND user_id=?",
+                "SELECT id FROM room_results WHERE room_id=%s AND user_id=%s",
                 (room["id"], session["user_id"])
             ).fetchone()
         if already:
@@ -2183,14 +2026,14 @@ def room_start(rid):
     """Shuffle questions uniquely for this student and begin."""
     import random, json as _j
     with get_db() as conn:
-        room = conn.execute("SELECT * FROM quiz_rooms WHERE id=? AND active=1",(rid,)).fetchone()
+        room = conn.execute("SELECT * FROM quiz_rooms WHERE id=%s AND active=1",(rid,)).fetchone()
     if not room:
         flash("Room not found or no longer active.", "error")
         return redirect("/room")
     already = False
     with get_db() as conn:
         already = conn.execute(
-            "SELECT id FROM room_results WHERE room_id=? AND user_id=?",
+            "SELECT id FROM room_results WHERE room_id=%s AND user_id=%s",
             (rid, session["user_id"])
         ).fetchone()
     if already:
@@ -2223,21 +2066,13 @@ def room_start(rid):
     start_t = time.time()
     end_t   = start_t + room["time_limit"] * len(final)
     with get_db() as conn:
-        conn.execute("""INSERT OR REPLACE INTO room_quiz_sessions
+        conn.execute("""INSERT INTO room_quiz_sessions
             (user_id, room_id, room_title, questions, idx, score, total, start_time, end_time)
-            VALUES (?,?,?,?,0,0,?,?,?)""",
+            VALUES (%s,%s,%s,%s,0,0,%s,%s,%s)""",
             (session["user_id"], rid, room["title"],
              _j2.dumps(final), len(final), start_t, end_t))
     session["rq_active"] = rid
-    # Go to format picker
-    with get_db() as conn:
-        room = conn.execute("SELECT title FROM quiz_rooms WHERE id=?", (rid,)).fetchone()
-    return render_template("format_picker.html",
-        mode="room",
-        room_title=room["title"] if room else "Quiz Room",
-        beewise_url=f"/room/quiz?fmt=beewise",
-        rapidbee_url=f"/room/quiz?fmt=rapidbee",
-        back_url="/room")
+    return redirect("/room/quiz")
 
 @app.route("/room/quiz", methods=["GET","POST"])
 @require_login
@@ -2246,7 +2081,9 @@ def room_quiz():
     uid = session["user_id"]
 
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM room_quiz_sessions WHERE user_id=?", (uid,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM room_quiz_sessions WHERE user_id=%s", (uid,)
+        ).fetchone()
 
     if not row:
         flash("No active room session.", "error")
@@ -2261,48 +2098,38 @@ def room_quiz():
     start_t = row["start_time"]
     end_t   = row["end_time"]
 
-    fmt = request.args.get("fmt") or session.get("rq_fmt","rapidbee")
-    if request.args.get("fmt"):
-        session["rq_fmt"] = fmt
-
-    def finish_room(sc):
-        pct        = round(sc / total * 100) if total else 0
-        time_taken = int(time.time() - start_t)
-        with get_db() as conn2:
-            try:
-                conn2.execute("INSERT INTO room_results (room_id,user_id,score,total,pct,time_taken) VALUES (?,?,?,?,?,?)",
-                              (rid, uid, sc, total, pct, time_taken))
-            except: pass
-            conn2.execute("DELETE FROM room_quiz_sessions WHERE user_id=?", (uid,))
-        session.pop("rq_active", None); session.pop("rq_fmt", None)
-        return render_template("room_result.html", score=sc, total=total, pct=pct,
-                               time_taken=time_taken, title=title, rid=rid)
-
-    # ── BEEWISE FORMAT ────────────────────────────────────────────────
-    if fmt == "beewise":
-        if request.method == "POST":
-            sc = 0
-            for i, q in enumerate(qs):
-                chosen = int(request.form.get(f"q{i}", -1))
-                if chosen == q["a"]: sc += 1
-            return finish_room(sc)
-        left = max(0, int(end_t - time.time()))
-        return render_template("room_beewise.html", questions=qs, total=total, left=left, title=title)
-
-    # ── RAPIDBEE FORMAT ───────────────────────────────────────────────
     if request.method == "POST":
-        chosen = int(request.form.get("answer", -1))
-        if chosen == qs[idx]["a"]: score += 1
+        chosen  = int(request.form.get("answer", -1))
+        if chosen == qs[idx]["a"]:
+            score += 1
         idx += 1
         with get_db() as conn:
-            conn.execute("UPDATE room_quiz_sessions SET idx=?,score=? WHERE user_id=?", (idx, score, uid))
+            conn.execute(
+                "UPDATE room_quiz_sessions SET idx=%s, score=%s WHERE user_id=%s",
+                (idx, score, uid)
+            )
 
+    # Finished%s
     if idx >= total or time.time() > end_t:
-        return finish_room(score)
+        pct        = round(score / total * 100) if total else 0
+        time_taken = int(time.time() - start_t)
+        with get_db() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO room_results (room_id,user_id,score,total,pct,time_taken) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (rid, uid, score, total, pct, time_taken)
+                )
+            except: pass
+            conn.execute("DELETE FROM room_quiz_sessions WHERE user_id=%s", (uid,))
+        session.pop("rq_active", None)
+        return render_template("room_result.html",
+                               score=score, total=total, pct=pct,
+                               time_taken=time_taken, title=title, rid=rid)
 
     q    = qs[idx]
     left = max(0, int(end_t - time.time()))
-    return render_template("room_quiz.html", q=q, num=idx+1, total=total, left=left, title=title)
+    return render_template("room_quiz.html",
+                           q=q, num=idx+1, total=total, left=left, title=title)
 
 
 
@@ -2329,192 +2156,6 @@ def game_speedmath():
 def game_scramble():
     return render_template("game_scramble.html")
 
-@app.route("/games/jigsaw")
-@require_login
-def game_jigsaw():
-    uid = session["user_id"]
-    with get_db() as conn:
-        levels = conn.execute(
-            "SELECT * FROM jigsaw_levels ORDER BY order_num ASC"
-        ).fetchall()
-        progress = {
-            row["level_id"]: dict(row)
-            for row in conn.execute(
-                "SELECT * FROM jigsaw_progress WHERE user_id=?", (uid,)
-            ).fetchall()
-        }
-    # Pre-compute locked status in Python — cleaner than complex Jinja
-    levels_data = []
-    for i, lv in enumerate(levels):
-        prog = progress.get(lv["id"])
-        if lv["order_num"] == 0:
-            locked = False
-        else:
-            # Find the level with order_num one less
-            prev = next((l for l in levels if l["order_num"] == lv["order_num"]-1), None)
-            locked = not (prev and progress.get(prev["id"], {}).get("completed", 0))
-        levels_data.append({
-            "id":          lv["id"],
-            "title":       lv["title"],
-            "description": lv["description"],
-            "image_path":  lv["image_path"],
-            "grid_size":   lv["grid_size"],
-            "order_num":   lv["order_num"],
-            "locked":      locked,
-            "completed":   prog["completed"] if prog else 0,
-            "stars":       prog["stars"]     if prog else 0,
-            "best_time":   prog["best_time"] if prog else 0,
-        })
-    return render_template("game_jigsaw.html", levels=levels_data)
-
-
-@app.route("/games/jigsaw/<int:level_id>")
-@require_login
-def game_jigsaw_play(level_id):
-    uid = session["user_id"]
-    with get_db() as conn:
-        level = conn.execute(
-            "SELECT * FROM jigsaw_levels WHERE id=?", (level_id,)
-        ).fetchone()
-        if not level:
-            flash("Level not found.", "error")
-            return redirect("/games/jigsaw")
-        # Check level is unlocked (first level always unlocked,
-        # others need previous level completed)
-        if level["order_num"] > 0:
-            prev = conn.execute(
-                "SELECT id FROM jigsaw_levels WHERE order_num=? ORDER BY order_num",
-                (level["order_num"]-1,)
-            ).fetchone()
-            if prev:
-                prog = conn.execute(
-                    "SELECT completed FROM jigsaw_progress WHERE user_id=? AND level_id=?",
-                    (uid, prev["id"])
-                ).fetchone()
-                if not prog or not prog["completed"]:
-                    flash("Complete the previous level first! 🔒", "error")
-                    return redirect("/games/jigsaw")
-        progress = conn.execute(
-            "SELECT * FROM jigsaw_progress WHERE user_id=? AND level_id=?",
-            (uid, level_id)
-        ).fetchone()
-    return render_template("game_jigsaw_play.html",
-                           level=level, progress=progress)
-
-
-@app.route("/games/jigsaw/complete", methods=["POST"])
-@require_login
-def game_jigsaw_complete():
-    import json as _j
-    uid      = session["user_id"]
-    level_id = request.json.get("level_id")
-    time_s   = request.json.get("time", 0)
-    stars    = request.json.get("stars", 1)
-    if not level_id:
-        return {"ok": False}, 400
-    with get_db() as conn:
-        existing = conn.execute(
-            "SELECT best_time, stars FROM jigsaw_progress WHERE user_id=? AND level_id=?",
-            (uid, level_id)
-        ).fetchone()
-        if existing:
-            best = min(existing["best_time"], time_s) if existing["best_time"] > 0 else time_s
-            best_stars = max(existing["stars"], stars)
-            conn.execute("""UPDATE jigsaw_progress
-                SET completed=1, best_time=?, stars=?, completed_at=datetime('now')
-                WHERE user_id=? AND level_id=?""",
-                (best, best_stars, uid, level_id))
-        else:
-            conn.execute("""INSERT INTO jigsaw_progress
-                (user_id, level_id, completed, best_time, stars, completed_at)
-                VALUES (?,?,1,?,?,datetime('now'))""",
-                (uid, level_id, time_s, stars))
-    # Check achievements
-    with get_db() as conn:
-        total_done = conn.execute(
-            "SELECT COUNT(*) FROM jigsaw_progress WHERE user_id=? AND completed=1", (uid,)
-        ).fetchone()[0]
-    achs = ["first_jigsaw"]
-    if stars == 3:        achs.append("secret_jigsaw_fast")
-    if total_done >= 5:   achs.append("jigsaw_hard")
-    awarded = []
-    with get_db() as conn:
-        existing_achs = {r[0] for r in conn.execute(
-            "SELECT ach_id FROM achievements WHERE user_id=?", (uid,))}
-        for ach_id in achs:
-            if ach_id in ACH_MAP and ach_id not in existing_achs:
-                conn.execute("INSERT INTO achievements (user_id,ach_id) VALUES (?,?)",
-                             (uid, ach_id))
-                awarded.append(ACH_MAP[ach_id])
-    return {"ok": True, "awarded": awarded}
-
-
-# ── Jigsaw Admin ───────────────────────────────────────────────────
-@app.route("/admin/jigsaw/upload", methods=["POST"])
-@require_login
-@require_admin
-def admin_jigsaw_upload():
-    import os as _os
-    title    = request.form.get("title","").strip()
-    desc     = request.form.get("description","").strip()
-    grid     = request.form.get("grid_size", type=int, default=4)
-    order    = request.form.get("order_num", type=int, default=0)
-    img_file = request.files.get("image")
-    if not title or not img_file:
-        flash("Title and image are required.", "error")
-        return redirect("/admin?tab=jigsaw")
-    # Save image
-    ext = img_file.filename.rsplit(".",1)[-1].lower()
-    if ext not in ("jpg","jpeg","png","webp","gif"):
-        flash("Only JPG, PNG, WebP images allowed.", "error")
-        return redirect("/admin?tab=jigsaw")
-    import uuid as _uuid
-    fname = f"jigsaw_{_uuid.uuid4().hex[:8]}.{ext}"
-    img_file.save(f"static/{fname}")
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO jigsaw_levels (title,description,image_path,grid_size,order_num) VALUES (?,?,?,?,?)",
-            (title, desc, fname, grid, order)
-        )
-    flash(f"✅ Level '{title}' added!", "success")
-    return redirect("/admin?tab=jigsaw")
-
-
-@app.route("/admin/jigsaw/delete/<int:lid>", methods=["POST"])
-@require_login
-@require_admin
-def admin_jigsaw_delete(lid):
-    with get_db() as conn:
-        conn.execute("DELETE FROM jigsaw_levels WHERE id=?", (lid,))
-        conn.execute("DELETE FROM jigsaw_progress WHERE level_id=?", (lid,))
-    flash("Level deleted.", "success")
-    return redirect("/admin?tab=jigsaw")
-
-@app.route("/games/chess")
-@require_login
-def game_chess():
-    return render_template("game_chess.html")
-
-@app.route("/games/award", methods=["POST"])
-@require_login
-def games_award():
-    """Called by GameSpace JS to award achievements without full quiz flow"""
-    ach_ids = request.json.get("achievements", [])
-    if not ach_ids or not isinstance(ach_ids, list):
-        return {"ok": False}, 400
-    uid = session["user_id"]
-    awarded = []
-    with get_db() as conn:
-        existing = {r[0] for r in conn.execute(
-            "SELECT ach_id FROM achievements WHERE user_id=?", (uid,))}
-        for ach_id in ach_ids[:10]:  # cap at 10 per call
-            if ach_id in ACH_MAP and ach_id not in existing:
-                conn.execute("INSERT INTO achievements (user_id,ach_id) VALUES (?,?)",
-                             (uid, ach_id))
-                awarded.append(ACH_MAP[ach_id])
-                existing.add(ach_id)
-    return {"ok": True, "awarded": awarded}
-
 
 # ── BeeXam ─────────────────────────────────────────────────────────────────────
 def init_beexam():
@@ -2524,7 +2165,7 @@ def init_beexam():
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 name       TEXT UNIQUE NOT NULL,
                 exam_group TEXT DEFAULT 'Other',
-                created    TEXT DEFAULT (datetime('now'))
+                created    TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS beexam_papers (
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2536,7 +2177,7 @@ def init_beexam():
                 exam_group     TEXT DEFAULT 'Other',
                 question_count INTEGER DEFAULT 0,
                 created_by     INTEGER,
-                created        TEXT DEFAULT (datetime('now'))
+                created        TEXT DEFAULT (NOW())
             );
             CREATE TABLE IF NOT EXISTS beexam_questions (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2559,7 +2200,7 @@ def init_beexam():
                 pct        REAL DEFAULT 0,
                 grade      TEXT DEFAULT 'F',
                 time_taken INTEGER DEFAULT 0,
-                played_at  TEXT DEFAULT (datetime('now'))
+                played_at  TEXT DEFAULT (NOW())
             );
         """)
 
@@ -2595,7 +2236,7 @@ def beexam_landing():
         with get_db() as conn:
             for et in exam_types:
                 try:
-                    conn.execute("INSERT OR IGNORE INTO beexam_exam_types (name, exam_group) VALUES (?,?)",
+                    conn.execute("INSERT INTO beexam_exam_types (name, exam_group) VALUES (%s,%s)",
                                  (et["name"], et["group"]))
                 except: pass
 
@@ -2609,13 +2250,13 @@ def beexam_start(paper_id):
     time_limit = request.args.get("time", type=int)
     with get_db() as conn:
         paper = conn.execute(
-            "SELECT * FROM beexam_papers WHERE id=?", (paper_id,)
+            "SELECT * FROM beexam_papers WHERE id=%s", (paper_id,)
         ).fetchone()
         if not paper:
             flash("Paper not found.", "error")
             return redirect("/beexam")
         raw_qs = conn.execute(
-            "SELECT * FROM beexam_questions WHERE paper_id=? ORDER BY id", (paper_id,)
+            "SELECT * FROM beexam_questions WHERE paper_id=%s ORDER BY id", (paper_id,)
         ).fetchall()
 
     if not raw_qs:
@@ -2644,13 +2285,7 @@ def beexam_start(paper_id):
     session["bx_start_time"] = int(__import__("time").time())
     session["bx_answers"]    = []
     session["bx_index"]      = 0
-    # Show format picker
-    return render_template("format_picker.html",
-        mode="beexam",
-        paper_title=f"{paper['exam_name']} {paper['year']}",
-        beewise_url="/beexam/quiz?fmt=beewise",
-        rapidbee_url="/beexam/quiz?fmt=rapidbee",
-        back_url="/beexam")
+    return redirect("/beexam/quiz")
 
 
 @app.route("/beexam/quiz", methods=["GET", "POST"])
@@ -2666,36 +2301,7 @@ def beexam_quiz():
     elapsed   = int(_time.time()) - session.get("bx_start_time", int(_time.time()))
     time_left = max(0, session["bx_time_limit"] - elapsed)
     idx       = session.get("bx_index", 0)
-    paper_id  = session.get("bx_paper_id")
 
-    fmt = request.args.get("fmt") or session.get("bx_fmt", "rapidbee")
-    if request.args.get("fmt"):
-        session["bx_fmt"] = fmt
-
-    with get_db() as conn:
-        paper = conn.execute("SELECT * FROM beexam_papers WHERE id=?", (paper_id,)).fetchone()
-
-    def finish_beexam(answers):
-        while len(answers) < len(questions):
-            answers.append(-1)
-        session["bx_answers"] = answers
-        session.pop("bx_fmt", None)
-        return redirect("/beexam/result")
-
-    # ── BEEWISE FORMAT ────────────────────────────────────────────────
-    if fmt == "beewise":
-        if request.method == "POST" or time_left <= 0:
-            answers = []
-            for i in range(len(questions)):
-                ans = request.form.get(f"q{i}")
-                answers.append(int(ans) if ans is not None and ans != "" else -1)
-            return finish_beexam(answers)
-        return render_template("beexam_beewise.html",
-                               questions=questions, paper=paper,
-                               total=len(questions), left=time_left,
-                               total_time=session["bx_time_limit"])
-
-    # ── RAPIDBEE FORMAT ───────────────────────────────────────────────
     if request.method == "POST":
         ans = request.form.get("answer")
         answers = session.get("bx_answers", [])
@@ -2704,10 +2310,21 @@ def beexam_quiz():
         session["bx_index"]   = idx + 1
         idx += 1
 
+    # Time up or all answered → go to result
     if time_left <= 0 or idx >= len(questions):
-        return finish_beexam(session.get("bx_answers", []))
+        # Pad skipped
+        answers = session.get("bx_answers", [])
+        while len(answers) < len(questions):
+            answers.append(-1)
+        session["bx_answers"] = answers
+        return redirect("/beexam/result")
 
     q = questions[idx]
+    with get_db() as conn:
+        paper = conn.execute(
+            "SELECT * FROM beexam_papers WHERE id=%s", (session["bx_paper_id"],)
+        ).fetchone()
+
     return render_template("beexam_quiz.html",
                            q=q, paper=paper,
                            num=idx + 1, total=len(questions),
@@ -2729,7 +2346,7 @@ def beexam_result():
 
     with get_db() as conn:
         paper = conn.execute(
-            "SELECT * FROM beexam_papers WHERE id=?", (paper_id,)
+            "SELECT * FROM beexam_papers WHERE id=%s", (paper_id,)
         ).fetchone()
 
     score = wrong = skipped = 0
@@ -2779,7 +2396,7 @@ def beexam_result():
         conn.execute("""
             INSERT INTO beexam_results
               (user_id, paper_id, score, wrong, skipped, total, pct, grade, time_taken)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (session["user_id"], paper_id, score, wrong, skipped, total, pct, grade, elapsed))
 
     # Clear session
@@ -2809,7 +2426,7 @@ def admin_beexam_upload():
 
     if not csv_file or not exam_name or not year:
         flash("Exam name, year, and CSV file are required.", "error")
-        return redirect("/admin?tab=beexam")
+        return redirect("/admin%stab=beexam")
 
     try:
         text   = csv_file.read().decode("utf-8-sig")
@@ -2821,13 +2438,13 @@ def admin_beexam_upload():
 
         if not rows:
             flash("CSV file is empty.", "error")
-            return redirect("/admin?tab=beexam")
+            return redirect("/admin%stab=beexam")
 
         with get_db() as conn:
             cur = conn.execute(
                 """INSERT INTO beexam_papers
                    (exam_name, subject, year, time_limit, cutoff, exam_group, created_by)
-                   VALUES (?,?,?,?,?,?,?)""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s)""",
                 (exam_name, subject, year, time_limit, cutoff, exam_group, session["user_id"])
             )
             paper_id = cur.lastrowid
@@ -2838,58 +2455,22 @@ def admin_beexam_upload():
                 conn.execute("""
                     INSERT INTO beexam_questions
                       (paper_id, question, opt0, opt1, opt2, opt3, category)
-                    VALUES (?,?,?,?,?,?,?)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)
                 """, (paper_id, row[0].strip(), row[1].strip(),
                       row[2].strip(), row[3].strip(), row[4].strip(), cat))
                 count += 1
             conn.execute(
-                "UPDATE beexam_papers SET question_count=? WHERE id=?",
+                "UPDATE beexam_papers SET question_count=%s WHERE id=%s",
                 (count, paper_id)
             )
         flash(f"✅ Uploaded {count} questions for {exam_name} {year}!", "success")
     except Exception as e:
         flash(f"Upload failed: {e}", "error")
 
-    return redirect("/admin?tab=beexam")
+    return redirect("/admin%stab=beexam")
 
 
-@app.route("/admin/promote", methods=["POST"])
-@require_login
-@require_admin
-def admin_promote_user():
-    username = request.form.get("username","").strip()
-    new_role = request.form.get("role","student")
-    if new_role not in ("student","teacher","admin"):
-        flash("Invalid role.", "error")
-        return redirect("/admin")
-    with get_db() as conn:
-        user = conn.execute("SELECT id,username,role FROM users WHERE username=?", (username,)).fetchone()
-        if not user:
-            flash(f"User '{username}' not found.", "error")
-            return redirect("/admin")
-        is_admin = 1 if new_role == "admin" else 0
-        conn.execute("UPDATE users SET role=?, is_admin=? WHERE username=?",
-                     (new_role, is_admin, username))
-    role_labels = {"student":"Student 🎓","teacher":"Teacher 👩‍🏫","admin":"Admin ⚙️"}
-    flash(f"✅ {username} promoted to {role_labels.get(new_role, new_role)}!", "success")
-    return redirect("/admin")
-
-
-@app.route("/admin/users")
-@require_login
-@require_admin
-def admin_users():
-    q = request.args.get("q","").strip()
-    with get_db() as conn:
-        if q:
-            users = conn.execute(
-                "SELECT id,username,role,is_admin,created FROM users WHERE username LIKE ? ORDER BY created DESC LIMIT 20",
-                (f"%{q}%",)).fetchall()
-        else:
-            users = conn.execute(
-                "SELECT id,username,role,is_admin,created FROM users ORDER BY created DESC LIMIT 50"
-            ).fetchall()
-    return {"users": [{"id":u["id"],"username":u["username"],"role":u["role"] or "student"} for u in users]}
+@app.route("/admin/beexam/create_exam_type", methods=["POST"])
 @require_login
 @require_admin
 def admin_beexam_create_type():
@@ -2898,14 +2479,14 @@ def admin_beexam_create_type():
     group = request.form.get("exam_group","Other").strip()
     if not name:
         flash("Exam name is required.", "error")
-        return redirect("/admin?tab=beexam")
+        return redirect("/admin%stab=beexam")
     try:
         with get_db() as conn:
-            conn.execute("INSERT INTO beexam_exam_types (name, exam_group) VALUES (?,?)", (name, group))
+            conn.execute("INSERT INTO beexam_exam_types (name, exam_group) VALUES (%s,%s)", (name, group))
         flash(f"✅ Exam panel '{name}' created!", "success")
     except Exception:
         flash(f"'{name}' already exists.", "error")
-    return redirect("/admin?tab=beexam")
+    return redirect("/admin%stab=beexam")
 
 
 @app.route("/admin/beexam/add_question", methods=["POST"])
@@ -2922,14 +2503,14 @@ def admin_beexam_add_question():
     category = request.form.get("category","").strip()
     if not all([paper_id, question, opt0, opt1, opt2, opt3]):
         flash("All fields are required.", "error")
-        return redirect("/admin?tab=beexam")
+        return redirect("/admin%stab=beexam")
     with get_db() as conn:
         conn.execute("""INSERT INTO beexam_questions
             (paper_id, question, opt0, opt1, opt2, opt3, category)
-            VALUES (?,?,?,?,?,?,?)""", (paper_id, question, opt0, opt1, opt2, opt3, category))
-        conn.execute("UPDATE beexam_papers SET question_count = question_count+1 WHERE id=?", (paper_id,))
+            VALUES (%s,%s,%s,%s,%s,%s,%s)""", (paper_id, question, opt0, opt1, opt2, opt3, category))
+        conn.execute("UPDATE beexam_papers SET question_count = question_count+1 WHERE id=%s", (paper_id,))
     flash("✅ Question added!", "success")
-    return redirect("/admin?tab=beexam")
+    return redirect("/admin%stab=beexam")
 
 
 @app.route("/admin/beexam/delete_exam_type/<exam_name>", methods=["POST"])
@@ -2939,13 +2520,13 @@ def admin_beexam_delete_type(exam_name):
     init_beexam()
     with get_db() as conn:
         # Delete all questions + papers under this exam, then the type
-        papers = conn.execute("SELECT id FROM beexam_papers WHERE exam_name=?", (exam_name,)).fetchall()
+        papers = conn.execute("SELECT id FROM beexam_papers WHERE exam_name=%s", (exam_name,)).fetchall()
         for p in papers:
-            conn.execute("DELETE FROM beexam_questions WHERE paper_id=?", (p["id"],))
-        conn.execute("DELETE FROM beexam_papers WHERE exam_name=?", (exam_name,))
-        conn.execute("DELETE FROM beexam_exam_types WHERE name=?", (exam_name,))
+            conn.execute("DELETE FROM beexam_questions WHERE paper_id=%s", (p["id"],))
+        conn.execute("DELETE FROM beexam_papers WHERE exam_name=%s", (exam_name,))
+        conn.execute("DELETE FROM beexam_exam_types WHERE name=%s", (exam_name,))
     flash(f"Deleted '{exam_name}' and all its papers.", "success")
-    return redirect("/admin?tab=beexam")
+    return redirect("/admin%stab=beexam")
 
 
 @app.route("/admin/beexam/delete/<int:paper_id>", methods=["POST"])
@@ -2955,132 +2536,13 @@ def admin_beexam_delete(paper_id):
     init_beexam()
     with get_db() as conn:
         paper = conn.execute(
-            "SELECT exam_name, year FROM beexam_papers WHERE id=?", (paper_id,)
+            "SELECT exam_name, year FROM beexam_papers WHERE id=%s", (paper_id,)
         ).fetchone()
         if paper:
-            conn.execute("DELETE FROM beexam_questions WHERE paper_id=?", (paper_id,))
-            conn.execute("DELETE FROM beexam_papers WHERE id=?", (paper_id,))
+            conn.execute("DELETE FROM beexam_questions WHERE paper_id=%s", (paper_id,))
+            conn.execute("DELETE FROM beexam_papers WHERE id=%s", (paper_id,))
             flash(f"Deleted {paper['exam_name']} {paper['year']}.", "success")
-    return redirect("/admin?tab=beexam")
-
-
-# ── Teacher Quiz Room ──────────────────────────────────────────────────────────
-@app.route("/teacher/room/create", methods=["POST"])
-@require_login
-@require_teacher
-def teacher_create_room():
-    import random as _r, string as _s, json as _j, csv as _csv, io as _io
-    title      = request.form.get("room_title","").strip()
-    time_limit = int(request.form.get("time_limit", 30))
-    if not title:
-        flash("Room title is required.", "error")
-        return redirect("/teacher")
-    f = request.files.get("room_csv")
-    if not f or f.filename == "":
-        flash("Please upload a CSV file.", "error")
-        return redirect("/teacher")
-    questions = []
-    try:
-        raw = f.stream.read()
-        for enc in ("utf-8-sig","utf-8","latin-1"):
-            try: content = raw.decode(enc); break
-            except: continue
-        content = content.replace("\r\n","\n").replace("\r","\n")
-        reader  = _csv.DictReader(_io.StringIO(content))
-        if reader.fieldnames:
-            reader.fieldnames = [h.strip().lower() for h in reader.fieldnames]
-        for row in reader:
-            q  = (row.get("question") or "").strip()
-            o0 = (row.get("opt0") or row.get("correct","")).strip()
-            o1 = (row.get("opt1","")).strip()
-            o2 = (row.get("opt2","")).strip()
-            o3 = (row.get("opt3","")).strip()
-            if q and o0 and o1:
-                questions.append({"q":q,"correct":o0,"options_raw":[o for o in [o0,o1,o2,o3] if o]})
-    except Exception as e:
-        flash(f"CSV error: {e}", "error")
-        return redirect("/teacher")
-    if not questions:
-        flash("No valid questions in CSV.", "error")
-        return redirect("/teacher")
-    code = ''.join(_r.choices(_s.ascii_uppercase + _s.digits, k=6))
-    with get_db() as conn:
-        conn.execute("INSERT INTO quiz_rooms (title,code,created_by,questions,time_limit) VALUES (?,?,?,?,?)",
-                     (title, code, session["user_id"], _j.dumps(questions), time_limit))
-    flash(f"Room '{title}' created! Code: {code}", "success")
-    return redirect("/teacher")
-
-
-@app.route("/teacher/room/delete/<int:rid>", methods=["POST"])
-@require_login
-@require_teacher
-def teacher_delete_room(rid):
-    with get_db() as conn:
-        room = conn.execute("SELECT created_by FROM quiz_rooms WHERE id=?", (rid,)).fetchone()
-        if not room or room["created_by"] != session["user_id"]:
-            flash("Not authorised.", "error")
-            return redirect("/teacher")
-        conn.execute("DELETE FROM room_results WHERE room_id=?", (rid,))
-        conn.execute("DELETE FROM quiz_rooms WHERE id=?", (rid,))
-    flash("Room deleted.", "success")
-    return redirect("/teacher")
-
-
-@app.route("/teacher/room/results/<int:rid>")
-@require_login
-@require_teacher
-def teacher_room_results(rid):
-    with get_db() as conn:
-        room = conn.execute("SELECT * FROM quiz_rooms WHERE id=? AND created_by=?",
-                            (rid, session["user_id"])).fetchone()
-        if not room:
-            flash("Room not found.", "error")
-            return redirect("/teacher")
-        results = conn.execute("""
-            SELECT u.username, u.avatar, rr.score, rr.total, rr.pct,
-                   rr.time_taken, rr.finished
-            FROM room_results rr
-            JOIN users u ON u.id = rr.user_id
-            WHERE rr.room_id=?
-            ORDER BY rr.pct DESC, rr.time_taken ASC
-        """, (rid,)).fetchall()
-    return render_template("room_results.html", room=room, results=results)
-
-
-@app.route("/teacher/schedule", methods=["POST"])
-@require_login
-@require_teacher
-def teacher_schedule_test():
-    room_id      = request.form.get("room_id", type=int)
-    class_id     = request.form.get("class_id", type=int)
-    scheduled_at = request.form.get("scheduled_at","").strip()
-    note         = request.form.get("note","").strip()
-    if not room_id or not scheduled_at:
-        flash("Room and scheduled time are required.", "error")
-        return redirect("/teacher")
-    with get_db() as conn:
-        # Verify teacher owns this room
-        room = conn.execute("SELECT id FROM quiz_rooms WHERE id=? AND created_by=?",
-                            (room_id, session["user_id"])).fetchone()
-        if not room:
-            flash("You can only schedule your own rooms.", "error")
-            return redirect("/teacher")
-        conn.execute("""INSERT INTO scheduled_tests
-            (teacher_id, room_id, class_id, scheduled_at, note) VALUES (?,?,?,?,?)""",
-            (session["user_id"], room_id, class_id, scheduled_at, note))
-    flash("Test scheduled! ✅", "success")
-    return redirect("/teacher")
-
-
-@app.route("/teacher/schedule/delete/<int:sid>", methods=["POST"])
-@require_login
-@require_teacher
-def teacher_delete_schedule(sid):
-    with get_db() as conn:
-        conn.execute("DELETE FROM scheduled_tests WHERE id=? AND teacher_id=?",
-                     (sid, session["user_id"]))
-    flash("Schedule removed.", "success")
-    return redirect("/teacher")
+    return redirect("/admin%stab=beexam")
 
 
 # ── Teacher Dashboard ──────────────────────────────────────────────────────────
@@ -3090,60 +2552,28 @@ def teacher_delete_schedule(sid):
 def teacher_dashboard():
     tid = session["user_id"]
     with get_db() as conn:
-        classes = conn.execute("SELECT * FROM classes WHERE admin_id=?", (tid,)).fetchall()
+        classes = conn.execute(
+            "SELECT * FROM classes WHERE admin_id=%s", (tid,)
+        ).fetchall()
         class_data = []
         for cls in classes:
-            # Only class-level stats — NOT personal quiz history
             students = conn.execute("""
                 SELECT u.id, u.username, u.avatar, u.streak,
-                       COUNT(DISTINCT r.id)         AS games,
-                       ROUND(AVG(r.pct),1)          AS avg_pct,
-                       MAX(r.pct)                   AS best,
-                       MAX(r.played_at)             AS last_played,
-                       SUM(r.tab_switches)          AS total_tab_switches
+                       COUNT(r.id)              AS games,
+                       ROUND(AVG(r.pct),1)      AS avg_pct,
+                       MAX(r.pct)               AS best,
+                       MAX(r.played_at)         AS last_played
                 FROM class_members cm
-                JOIN users u ON u.id = cm.user_id
+                JOIN users    u ON u.id = cm.user_id
                 LEFT JOIN results r ON r.user_id = u.id
-                WHERE cm.class_id=?
+                WHERE cm.class_id=%s
                 GROUP BY u.id
                 ORDER BY avg_pct DESC
             """, (cls["id"],)).fetchall()
             class_data.append({"cls": cls, "students": students})
-
-        # Teacher's quiz rooms
-        rooms = conn.execute(
-            "SELECT * FROM quiz_rooms WHERE created_by=? ORDER BY id DESC", (tid,)
-        ).fetchall()
-
-        # Room results for anti-cheat — tab switches per student per room
-        room_results = {}
-        for room in rooms:
-            rr = conn.execute("""
-                SELECT u.username, u.avatar, rr.score, rr.total, rr.pct,
-                       rr.time_taken, rr.finished
-                FROM room_results rr
-                JOIN users u ON u.id = rr.user_id
-                WHERE rr.room_id=?
-                ORDER BY rr.pct DESC
-            """, (room["id"],)).fetchall()
-            room_results[room["id"]] = rr
-
-        # Scheduled tests
-        schedules = conn.execute("""
-            SELECT st.*, qr.title AS room_title, c.name AS class_name
-            FROM scheduled_tests st
-            JOIN quiz_rooms qr ON qr.id = st.room_id
-            LEFT JOIN classes c ON c.id = st.class_id
-            WHERE st.teacher_id=?
-            ORDER BY st.scheduled_at ASC
-        """, (tid,)).fetchall()
-
     return render_template("teacher_dashboard.html",
                            class_data=class_data,
-                           total_classes=len(classes),
-                           rooms=rooms,
-                           room_results=room_results,
-                           schedules=schedules)
+                           total_classes=len(classes))
 
 
 @app.route("/teacher/student/<int:uid>")
@@ -3155,24 +2585,27 @@ def teacher_student_view(uid):
         allowed = conn.execute("""
             SELECT 1 FROM class_members cm
             JOIN classes c ON c.id = cm.class_id
-            WHERE cm.user_id=? AND c.admin_id=?
+            WHERE cm.user_id=%s AND c.admin_id=%s
         """, (uid, tid)).fetchone()
         if not allowed:
             flash("You can only view students in your own classes.", "error")
             return redirect("/teacher")
         student = conn.execute(
-            "SELECT id, username, avatar, streak FROM users WHERE id=?", (uid,)
+            "SELECT id, username, avatar, streak FROM users WHERE id=%s", (uid,)
         ).fetchone()
-        # Only show quiz ROOM results (teacher-assigned tests) — not personal BeeWise/RapidBee history
-        room_results = conn.execute("""
-            SELECT qr.title AS room_name, rr.score, rr.total, rr.pct,
-                   rr.time_taken, rr.finished
-            FROM room_results rr
-            JOIN quiz_rooms qr ON qr.id = rr.room_id
-            WHERE rr.user_id=? AND qr.created_by=?
-            ORDER BY rr.finished DESC
-        """, (uid, tid)).fetchall()
-        # Category performance from answer_log (academic insight, not personal history)
+        results = conn.execute("""
+            SELECT mode, score, total, pct, grade, time_taken,
+                   tab_switches, played_at
+            FROM results WHERE user_id=%s
+            ORDER BY played_at DESC LIMIT 50
+        """, (uid,)).fetchall()
+        stats = conn.execute("""
+            SELECT COUNT(*)           AS games,
+                   ROUND(AVG(pct),1)  AS avg_pct,
+                   MAX(pct)           AS best,
+                   MIN(pct)           AS worst
+            FROM results WHERE user_id=%s
+        """, (uid,)).fetchone()
         cat_stats = conn.execute("""
             SELECT al.category,
                    COUNT(*)                                   AS total,
@@ -3180,33 +2613,18 @@ def teacher_student_view(uid):
                    ROUND(100.0*SUM(al.correct)/COUNT(*),1)  AS pct
             FROM answer_log al
             JOIN results r ON r.id = al.result_id
-            WHERE r.user_id=?
+            WHERE r.user_id=%s
             GROUP BY al.category
             ORDER BY pct ASC
         """, (uid,)).fetchall()
-        # Overall class stats only
-        stats = conn.execute("""
-            SELECT COUNT(*)          AS games,
-                   ROUND(AVG(pct),1) AS avg_pct,
-                   MAX(pct)          AS best,
-                   MIN(pct)          AS worst
-            FROM results WHERE user_id=?
-        """, (uid,)).fetchone()
-        # Anti-cheat: tab switches in teacher's rooms
-        cheat_flags = conn.execute("""
-            SELECT qr.title, rr.pct, rr.time_taken
-            FROM room_results rr
-            JOIN quiz_rooms qr ON qr.id = rr.room_id
-            WHERE rr.user_id=? AND qr.created_by=?
-            ORDER BY rr.finished DESC
-        """, (uid, tid)).fetchall()
-    return render_template("teacher_student_report.html",
-                           student=student,
-                           room_results=room_results,
-                           cat_stats=cat_stats,
-                           stats=stats,
-                           cheat_flags=cheat_flags,
-                           back_url="/teacher")
+        earned = conn.execute(
+            "SELECT ach_id FROM achievements WHERE user_id=%s", (uid,)
+        ).fetchall()
+    return render_template("student_report.html",
+                           student=student, results=results,
+                           stats=stats, cat_stats=cat_stats,
+                           earned=earned, ach_map={},
+                           back_url="/teacher", progress=[])
 
 
 @app.route("/teacher/class/create", methods=["POST"])
@@ -3221,7 +2639,7 @@ def teacher_create_class():
     code = _sec.token_hex(3).upper()
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO classes (name, code, created_by, admin_id) VALUES (?,?,?,?)",
+            "INSERT INTO classes (name, code, created_by, admin_id) VALUES (%s,%s,%s,%s)",
             (name, code, session["user_id"], session["user_id"])
         )
     flash(f'Class "{name}" created! Join code: {code}', "success")
@@ -3230,11 +2648,3 @@ def teacher_create_class():
 
 if __name__ == "__main__":
     app.run(debug=False)
-
-@app.errorhandler(404)
-def not_found(e):
-    return render_template("404.html"), 404
-
-@app.errorhandler(500)
-def server_error(e):
-    return render_template("500.html"), 500

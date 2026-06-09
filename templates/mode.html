@@ -105,19 +105,13 @@ body.bee-mode .e-time  { color:#7a5a00 !important; }
 
   <div class="section-label">📚 Practice by Category</div>
   <div class="practice-grid">
-    {% set icons = {
-      'Computer Science':'💻','General Knowledge':'💡','Geography':'🌍','History':'📜',
-      'Mathematics':'➗','Science':'🔭','Physics':'⚡','Chemistry':'⚗️','Biology':'🧬',
-      'Indian History':'🇮🇳','Civics':'🏛️','Economics':'💰','Indian Geography':'🗺️',
-      'English Grammar':'📝','Logical Reasoning':'🧠','Environmental Science':'🌱',
-      'Current Affairs':'📰','HTML':'🌐','CSS':'🎨','Python':'🐍','SQL':'🗄️',
-      'Flask':'🌶️','General':'💡'
-    } %}
+    {% set icons = {'HTML':'🌐','CSS':'🎨','Python':'🐍','SQL':'🗄️','Flask':'🌶️','General':'💡'} %}
+    {% set counts = {'HTML':10,'CSS':10,'Python':10,'SQL':10,'Flask':10,'General':10,} %}
     {% for cat in categories %}
-    <a href="/practice?cat={{ cat|urlencode }}" class="practice-btn">
+    <a href="/practice/setup?cat={{ cat|urlencode }}" class="practice-btn">
       <span class="p-icon">{{ icons.get(cat,'📖') }}</span>
       <span class="p-name">{{ cat }}</span>
-      <span class="p-count">{{ cat_counts.get(cat, 0) }} questions</span>
+      <span class="p-count">~{{ counts.get(cat,10) }} questions</span>
     </a>
     {% endfor %}
   </div>

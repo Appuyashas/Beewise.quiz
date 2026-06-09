@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}BeeWise.quiz – Practice: {{ cat }}{% endblock %}
+{% block head %}
+<style>
+.ps-wrap{min-height:80vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.ps-box{width:100%;max-width:480px}
+.ps-back{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:13px;
+  font-weight:700;text-decoration:none;margin-bottom:20px;transition:.2s}
+.ps-back:hover{color:var(--honey)}
+.ps-card{background:var(--card-bg);border:2px solid var(--stat-border);border-radius:24px;
+  padding:30px 28px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.ps-icon{font-size:48px;text-align:center;margin-bottom:10px}
+.ps-title{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;
+  color:var(--text-primary);text-align:center;margin-bottom:4px}
+.ps-cat{text-align:center;margin-bottom:24px}
+.ps-cat span{display:inline-block;padding:4px 16px;border-radius:20px;font-size:13px;font-weight:700;
+  background:rgba(255,183,3,.15);color:var(--honey);border:1px solid rgba(255,183,3,.3)}
+.ps-section{margin-bottom:22px}
+.ps-label{font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;
+  letter-spacing:.6px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ps-opts{display:flex;gap:8px;flex-wrap:wrap}
+.ps-opt{flex:1;min-width:70px;padding:12px 8px;border-radius:14px;
+  border:2px solid var(--stat-border);background:rgba(255,255,255,.03);
+  color:var(--text-muted);font-size:14px;font-weight:700;cursor:pointer;
+  text-align:center;transition:.2s;font-family:'Nunito',sans-serif}
+.ps-opt:hover{border-color:var(--honey);color:var(--honey);background:rgba(255,183,3,.08)}
+.ps-opt.active{background:rgba(255,183,3,.18);border-color:var(--honey);color:var(--honey)}
+.ps-opt .sub{font-size:10px;font-weight:600;color:var(--text-muted);margin-top:2px}
+.ps-opt.active .sub{color:rgba(255,183,3,.7)}
+.ps-start{width:100%;padding:16px;border:none;border-radius:16px;
+  background:linear-gradient(135deg,#FFD84D,#FB8500);color:#1a1a2e;
+  font-family:'Nunito',sans-serif;font-size:17px;font-weight:800;
+  cursor:pointer;transition:.25s;box-shadow:0 6px 20px rgba(255,183,3,.35);margin-top:6px}
+.ps-start:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(255,183,3,.5)}
+.ps-note{text-align:center;font-size:12px;color:var(--text-muted);margin-top:12px}
+
+/* bee mode */
+body.bee-mode .ps-card{background:#fff!important;border-color:#fde68a!important}
+body.bee-mode .ps-title{color:#1a1a2e!important}
+body.bee-mode .ps-opt{background:#fffbeb!important;border-color:#fde68a!important;color:#7a5a00!important}
+body.bee-mode .ps-opt:hover{border-color:#FB8500!important;color:#1a1a2e!important}
+body.bee-mode .ps-opt.active{background:#ffd84d!important;border-color:#FB8500!important;color:#1a1a2e!important}
+body.bee-mode .ps-opt .sub{color:#bba070!important}
+body.bee-mode .ps-opt.active .sub{color:#7a5a00!important}
+</style>
+{% endblock %}
+{% block content %}
+<div class="ps-wrap">
+  <div class="ps-box">
+    <a href="/mode" class="ps-back">← Back to Modes</a>
+    <div class="ps-card">
+      {% set icons = {
+        'Computer Science':'💻','General Knowledge':'💡','Geography':'🌍','History':'📜',
+        'Mathematics':'➗','Science':'🔭','Physics':'⚡','Chemistry':'⚗️','Biology':'🧬',
+        'Indian History':'🇮🇳','Civics':'🏛️','Economics':'💰','Indian Geography':'🗺️',
+        'English Grammar':'📝','Logical Reasoning':'🧠','Environmental Science':'🌱',
+        'Current Affairs':'📰'
+      } %}
+      <div class="ps-icon">{{ icons.get(cat,'📖') }}</div>
+      <div class="ps-title">Practice Mode</div>
+      <div class="ps-cat"><span>{{ cat }}</span></div>
+
+      <!-- Question count -->
+      <div class="ps-section">
+        <div class="ps-label">❓ How many questions?</div>
+        <div class="ps-opts" id="qopts">
+          <div class="ps-opt active" data-val="10" onclick="pick('q',this)">
+            10<div class="sub">Quick</div>
+          </div>
+          <div class="ps-opt" data-val="15" onclick="pick('q',this)">
+            15<div class="sub">Medium</div>
+          </div>
+          <div class="ps-opt" data-val="25" onclick="pick('q',this)">
+            25<div class="sub">Full</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time -->
+      <div class="ps-section">
+        <div class="ps-label">⏱ Time limit?</div>
+        <div class="ps-opts" id="topts">
+          <div class="ps-opt" data-val="60"  onclick="pick('t',this)">
+            1 min<div class="sub">Rush</div>
+          </div>
+          <div class="ps-opt" data-val="120" onclick="pick('t',this)">
+            2 min<div class="sub">Fast</div>
+          </div>
+          <div class="ps-opt active" data-val="180" onclick="pick('t',this)">
+            3 min<div class="sub">Normal</div>
+          </div>
+          <div class="ps-opt" data-val="300" onclick="pick('t',this)">
+            5 min<div class="sub">Relaxed</div>
+          </div>
+          <div class="ps-opt" data-val="900" onclick="pick('t',this)">
+            No rush 🍯<div class="sub">Chill</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="ps-start" onclick="startPractice()">
+        Start Practice ▶
+      </button>
+      <div class="ps-note">Timer starts only when you click Start</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let qcount = 10, timer = 180;
+
+function pick(type, el){
+  const group = type === 'q' ? 'qopts' : 'topts';
+  document.querySelectorAll('#'+group+' .ps-opt').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  if(type === 'q') qcount = parseInt(el.dataset.val);
+  else             timer  = parseInt(el.dataset.val);
+}
+
+function startPractice(){
+  window.location.href = '/practice?cat={{ cat|urlencode }}&timer='+timer+'&qcount='+qcount;
+}
+</script>
+{% endblock %}

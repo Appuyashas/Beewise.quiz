@@ -26,8 +26,7 @@
 .progress-fill{height:100%;background:linear-gradient(90deg,#FFD84D,#FB8500);border-radius:10px;transition:.4s}
 
 /* Per-question timer */
-/* per-question timer removed — practice mode is self-paced */
-  color:rgba(255,255,255,.6);min-width:28px;text-align:right}
+/* per-question timer removed */
 
 /* Question card */
 .rb-card{background:#fff;border-radius:22px;padding:26px 24px;box-shadow:0 16px 40px rgba(0,0,0,.18)}
@@ -111,32 +110,10 @@ body.bee-mode .rb-topbar{background:#fff3b0}
 
 
 /* Timer picker bar */
-.timer-picker{
-  display:flex;align-items:center;justify-content:center;
-  gap:14px;flex-wrap:wrap;
-  background:rgba(255,255,255,.05);
-  border-bottom:1px solid rgba(255,255,255,.08);
-  padding:12px 20px;
-}
-.tp-label{font-size:13px;font-weight:700;color:rgba(255,255,255,.5)}
-.tp-btns{display:flex;gap:8px;flex-wrap:wrap}
-.tp-btn{
-  padding:6px 16px;border-radius:20px;
-  background:rgba(255,255,255,.07);
-  color:rgba(255,255,255,.6);
-  font-size:13px;font-weight:700;
-  text-decoration:none;transition:.2s;
-  border:1.5px solid transparent;
-}
-.tp-btn:hover{background:rgba(255,183,3,.15);color:#FFD84D;border-color:rgba(255,183,3,.3)}
-.tp-btn.active{background:rgba(255,183,3,.2);color:#FFD84D;border-color:rgba(255,183,3,.5)}
-body.bee-mode .timer-picker{background:rgba(0,0,0,.06);border-color:rgba(0,0,0,.08)}
-body.bee-mode .tp-label{color:#7a5a00 !important}
-body.bee-mode .tp-btn{background:#fff !important;color:#1a1a2e !important;border-color:#fde68a !important}
-body.bee-mode .tp-btn:hover{background:#ffd84d !important;color:#1a1a2e !important;border-color:#FB8500 !important}
-body.bee-mode .tp-btn.active{background:#ffd84d !important;color:#1a1a2e !important;border-color:#FB8500 !important}
+/* timer picker removed */
+body.bee-mode /* timer picker removed */
 @media(max-width:480px){
-  .timer-picker{gap:8px;padding:10px 14px}
+
   .tp-label{font-size:12px}
   .tp-btn{padding:5px 12px;font-size:12px}
 }
@@ -154,28 +131,6 @@ body.bee-mode .tp-btn.active{background:#ffd84d !important;color:#1a1a2e !import
 </style>
 {% endblock %}
 {% block content %}
-<div class="timer-picker">
-  <span class="tp-label">⏱ Choose your time:</span>
-  <div class="tp-btns">
-    <button class="tp-btn {% if chosen==60  %}active{% endif %}" onclick="setTimer(60,this)">1 min</button>
-    <button class="tp-btn {% if chosen==120 %}active{% endif %}" onclick="setTimer(120,this)">2 min</button>
-    <button class="tp-btn {% if chosen==180 %}active{% endif %}" onclick="setTimer(180,this)">3 min</button>
-    <button class="tp-btn {% if chosen==300 %}active{% endif %}" onclick="setTimer(300,this)">5 min</button>
-    <button class="tp-btn {% if chosen==600 %}active{% endif %}" onclick="setTimer(600,this)">No rush 🍯</button>
-  </div>
-</div>
-
-{% if num == 1 %}
-<div class="timer-picker" style="border-top:1px solid rgba(255,255,255,.06);padding-top:10px;margin-top:0">
-  <span class="tp-label">❓ Questions:</span>
-  <div class="tp-btns">
-    <a href="/practice?cat={{ cat|urlencode }}&qcount=10&timer={{ chosen }}" class="tp-btn {% if total==10 %}active{% endif %}">10</a>
-    <a href="/practice?cat={{ cat|urlencode }}&qcount=15&timer={{ chosen }}" class="tp-btn {% if total==15 %}active{% endif %}">15</a>
-    <a href="/practice?cat={{ cat|urlencode }}&qcount=25&timer={{ chosen }}" class="tp-btn {% if total==25 %}active{% endif %}">25</a>
-  </div>
-</div>
-{% endif %}
-
 <div class="rb-wrap">
   <div class="rb-topbar">
     <div class="rb-left">
@@ -183,7 +138,7 @@ body.bee-mode .tp-btn.active{background:#ffd84d !important;color:#1a1a2e !import
       <span class="cat-pill">{{ cat }}</span>
     </div>
     <div class="rb-right">
-      <div class="timer-pill" id="timer">2:30</div>
+      <div class="timer-pill" id="timer">{{ '%d:%02d' % (chosen // 60, chosen % 60) }}</div>
       <a href="/mode" class="exit-link" onclick="return confirm('Exit practice? Progress will be lost.')">✕ Exit</a>
     </div>
   </div>
@@ -236,19 +191,6 @@ let timeLeft   = {{ left }};
 let selectedAns= -1;
 let checked    = false;
 
-// ── Timer picker — no page reload ──
-function setTimer(seconds, btn){
-  timeLeft = seconds;
-  document.querySelectorAll('.tp-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  // Restart the interval cleanly
-  clearInterval(mainInt);
-  updateTimer();
-  mainInt = setInterval(updateTimer, 1000);
-  // Notify server
-  fetch('/practice/set_timer?cat={{ cat|urlencode }}&timer='+seconds).catch(()=>{});
-}
-
 // ── Overall timer ──
 function updateTimer(){
   const m = Math.floor(timeLeft/60), s = timeLeft%60;
@@ -260,6 +202,11 @@ function updateTimer(){
 }
 updateTimer();
 let mainInt = setInterval(updateTimer,1000);
+
+  qTimeLeft--;
+}
+updateQTimer();
+const qInt = setInterval(updateQTimer,1000);
 
 // ── Select ──
 function selectOption(idx,el){
