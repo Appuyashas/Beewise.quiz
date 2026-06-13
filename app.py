@@ -1701,30 +1701,12 @@ def edit_question(qid):
 
 # ── Class code system ─────────────────────────────────────────────────
 def init_classes():
-    with get_db() as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS classes (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                name       TEXT NOT NULL,
-                code       TEXT UNIQUE NOT NULL,
-                created_by INTEGER NOT NULL,
-                admin_id   INTEGER,
-                created    TEXT DEFAULT (NOW())
-            );
-            CREATE TABLE IF NOT EXISTS class_members (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                class_id INTEGER NOT NULL,
-                user_id  INTEGER NOT NULL,
-                joined   TEXT DEFAULT (NOW()),
-                UNIQUE(class_id, user_id)
-            );
-        """)
-        # Migration: add admin_id if missing (for existing databases)
-        try:
-            conn.execute("ALTER TABLE classes ADD COLUMN admin_id INTEGER")
-        except: pass
-        # Backfill admin_id from created_by for existing rows
-        conn.execute("UPDATE classes SET admin_id=created_by WHERE admin_id IS NULL")
+    # Tables already exist in Supabase — just backfill admin_id where missing
+    try:
+        with get_db() as conn:
+            conn.execute("UPDATE classes SET admin_id=created_by WHERE admin_id IS NULL")
+    except Exception as e:
+        print(f"[init_classes] skipped: {e}")
 init_classes()
 
 @app.route("/admin/create_class", methods=["GET","POST"])
@@ -2051,50 +2033,7 @@ def game_scramble():
 
 # ── BeeXam ─────────────────────────────────────────────────────────────────────
 def init_beexam():
-    with get_db() as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS beexam_exam_types (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                name       TEXT UNIQUE NOT NULL,
-                exam_group TEXT DEFAULT 'Other',
-                created    TEXT DEFAULT (NOW())
-            );
-            CREATE TABLE IF NOT EXISTS beexam_papers (
-                id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                exam_name      TEXT NOT NULL,
-                subject        TEXT,
-                year           INTEGER NOT NULL,
-                time_limit     INTEGER NOT NULL DEFAULT 10800,
-                cutoff         INTEGER,
-                exam_group     TEXT DEFAULT 'Other',
-                question_count INTEGER DEFAULT 0,
-                created_by     INTEGER,
-                created        TEXT DEFAULT (NOW())
-            );
-            CREATE TABLE IF NOT EXISTS beexam_questions (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                paper_id  INTEGER NOT NULL,
-                question  TEXT NOT NULL,
-                opt0      TEXT NOT NULL,
-                opt1      TEXT NOT NULL,
-                opt2      TEXT NOT NULL,
-                opt3      TEXT NOT NULL,
-                category  TEXT DEFAULT ''
-            );
-            CREATE TABLE IF NOT EXISTS beexam_results (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id    INTEGER NOT NULL,
-                paper_id   INTEGER NOT NULL,
-                score      INTEGER DEFAULT 0,
-                wrong      INTEGER DEFAULT 0,
-                skipped    INTEGER DEFAULT 0,
-                total      INTEGER DEFAULT 0,
-                pct        REAL DEFAULT 0,
-                grade      TEXT DEFAULT 'F',
-                time_taken INTEGER DEFAULT 0,
-                played_at  TEXT DEFAULT (NOW())
-            );
-        """)
+    pass  # Tables already created in Supabase via migration SQL
 
 
 @app.route("/beexam")
