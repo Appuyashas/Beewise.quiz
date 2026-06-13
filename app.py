@@ -464,10 +464,10 @@ def check_and_award(user_id, result_data):
         rapid_count = conn.execute(
             "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND mode='RapidBee'", (user_id,)).fetchone()["c"]
         cats_practiced = {r["mode"].split(":")[1] for r in conn.execute(
-            "SELECT DISTINCT mode FROM results WHERE user_id=%s AND mode LIKE 'Practice:%'",
+            "SELECT DISTINCT mode FROM results WHERE user_id=%s AND mode LIKE 'Practice:%%'",
             (user_id,)).fetchall()}
         practice_count = conn.execute(
-            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND mode LIKE 'Practice:%'",
+            "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND mode LIKE 'Practice:%%'",
             (user_id,)).fetchone()["c"]
         cert_count = conn.execute(
             "SELECT COUNT(*) as c FROM results WHERE user_id=%s AND pct>=80", (user_id,)).fetchone()["c"]
