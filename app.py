@@ -761,7 +761,7 @@ def landing():
         top_players  = conn.execute("""
             SELECT u.username, u.avatar, MAX(r.pct) as best, COUNT(r.id) as games
             FROM users u JOIN results r ON r.user_id=u.id
-            WHERE u.is_admin=0 GROUP BY u.id ORDER BY best DESC LIMIT 3
+            WHERE u.is_admin=0 GROUP BY u.id, u.username, u.avatar ORDER BY best DESC LIMIT 3
         """).fetchall()
     return render_template("landing.html",
                            total_users=total_users,
@@ -1165,12 +1165,14 @@ def leaderboard():
         top_pct = conn.execute("""
             SELECT u.username, u.avatar, MAX(r.pct) as best_pct, COUNT(r.id) as games
             FROM results r JOIN users u ON u.id=r.user_id
-            WHERE u.is_admin=0 GROUP BY r.user_id ORDER BY best_pct DESC LIMIT 10
+            WHERE u.is_admin=0 GROUP BY r.user_id, u.username, u.avatar
+            ORDER BY best_pct DESC LIMIT 10
         """).fetchall()
         top_games = conn.execute("""
             SELECT u.username, u.avatar, COUNT(r.id) as games, ROUND(AVG(r.pct)) as avg_pct
             FROM results r JOIN users u ON u.id=r.user_id
-            WHERE u.is_admin=0 GROUP BY r.user_id ORDER BY games DESC LIMIT 10
+            WHERE u.is_admin=0 GROUP BY r.user_id, u.username, u.avatar
+            ORDER BY games DESC LIMIT 10
         """).fetchall()
         top_streak = conn.execute("""
             SELECT username, avatar, streak FROM users
@@ -1193,10 +1195,10 @@ def admin():
             WHERE u.is_admin=0 GROUP BY u.id ORDER BY u.username
         """).fetchall()
         hardest = conn.execute("""
-            SELECT al.question, al.category, COUNT(*) as attempts,
-                   ROUND(SUM(CASE WHEN al.correct=0 THEN 1.0 END)/COUNT(*)*100) as fail_pct
-            FROM answer_log al GROUP BY al.question
-            HAVING attempts >= 3 ORDER BY fail_pct DESC LIMIT 10
+            SELECT al.category, COUNT(*) as attempts,
+                   ROUND(SUM(CASE WHEN al.correct=0 THEN 1.0 ELSE 0.0 END)/COUNT(*)*100) as fail_pct
+            FROM answer_log al GROUP BY al.category
+            HAVING COUNT(*) >= 3 ORDER BY fail_pct DESC LIMIT 10
         """).fetchall()
         flagged = conn.execute("""
             SELECT u.username, r.mode, r.tab_switches, r.pct, r.played_at
@@ -1221,7 +1223,7 @@ def admin():
         classes = conn.execute("""
             SELECT c.id, c.name, c.code, c.created, COUNT(cm.user_id) as member_count
             FROM classes c LEFT JOIN class_members cm ON cm.class_id=c.id
-            GROUP BY c.id ORDER BY c.created DESC
+            GROUP BY c.id, c.name, c.code, c.created ORDER BY c.created DESC
         """).fetchall()
         quiz_rooms = conn.execute("""
             SELECT qr.id, qr.title, qr.code, qr.time_limit, qr.created,
@@ -1230,7 +1232,7 @@ def admin():
             FROM quiz_rooms qr
             LEFT JOIN room_results rr ON rr.room_id = qr.id
             WHERE qr.active=1
-            GROUP BY qr.id ORDER BY qr.created DESC
+            GROUP BY qr.id, qr.title, qr.code, qr.time_limit, qr.created, qr.questions ORDER BY qr.created DESC
         """).fetchall()
         # Add question count to each room
         import json as _j
@@ -1256,7 +1258,7 @@ def admin():
                 JOIN users u ON u.id = cm.user_id
                 LEFT JOIN results r ON r.user_id = u.id
                 WHERE cm.class_id = %s
-                GROUP BY u.id ORDER BY best_pct DESC
+                GROUP BY u.id, u.username, u.avatar ORDER BY best_pct DESC
             """, (cl["id"],)).fetchall()
             class_members_detail[cl["id"]] = [dict(m) for m in members]
     init_beexam()
@@ -2410,7 +2412,7 @@ def teacher_dashboard():
                 JOIN users    u ON u.id = cm.user_id
                 LEFT JOIN results r ON r.user_id = u.id
                 WHERE cm.class_id=%s
-                GROUP BY u.id
+                GROUP BY u.id, u.username, u.avatar, u.streak
                 ORDER BY avg_pct DESC
             """, (cls["id"],)).fetchall()
             class_data.append({"cls": cls, "students": students})
