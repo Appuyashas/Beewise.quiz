@@ -6,6 +6,18 @@ from psycopg2.extras import RealDictCursor
 import hashlib, time, json, os, csv, io, datetime, re
 import requests as http_req
 
+# ── Make psycopg2 return timestamps as strings (templates use [:10] slicing) ──
+def _cast_ts(val, cur):
+    return val[:19] if val else None          # 'YYYY-MM-DD HH:MM:SS'
+def _cast_date(val, cur):
+    return val[:10] if val else None          # 'YYYY-MM-DD'
+psycopg2.extensions.register_type(
+    psycopg2.extensions.new_type((1114,), 'TIMESTAMP',   _cast_ts))
+psycopg2.extensions.register_type(
+    psycopg2.extensions.new_type((1184,), 'TIMESTAMPTZ', _cast_ts))
+psycopg2.extensions.register_type(
+    psycopg2.extensions.new_type((1082,), 'DATE',        _cast_date))
+
 # ── AI module ────────────────────────────────────────────────────────
 from ai import beebot_reply, generate_questions
 
