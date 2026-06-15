@@ -66,8 +66,9 @@ input[type="radio"]{display:none}
   z-index:100;
   border-radius:24px 24px 0 0;
   box-shadow:0 -8px 40px rgba(0,0,0,.25);
+  pointer-events:none;
 }
-.feedback-panel.show{transform:translateY(0)}
+.feedback-panel.show{transform:translateY(0);pointer-events:auto;}
 .feedback-panel.correct{background:linear-gradient(135deg,#d1fae5,#a7f3d0)}
 .feedback-panel.wrong{background:linear-gradient(135deg,#fee2e2,#fecaca)}
 .feedback-panel.timeout{background:linear-gradient(135deg,#fef3c7,#fde68a)}
@@ -249,6 +250,14 @@ function updateQTimer(){
 }
 updateQTimer();
 const qInt = setInterval(updateQTimer, 1000);
+
+// ── Fallback click handlers (for mobile/browsers that ignore onclick on divs) ──
+document.querySelectorAll('.rb-option').forEach(function(opt){
+  var idx = parseInt(opt.id.replace('opt',''));
+  opt.addEventListener('click', function(){ selectOption(idx, opt); });
+  opt.style.cursor = 'pointer';
+  opt.style.webkitTapHighlightColor = 'rgba(0,0,0,0)';
+});
 
 // ── Select option ──
 function selectOption(idx, el){

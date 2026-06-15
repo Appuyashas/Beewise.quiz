@@ -24,6 +24,9 @@ from ai import beebot_reply, generate_questions
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "beewise_secret_2025")  # ⚠️ Set SECRET_KEY env var in production!
 
+# Speed: cache static files aggressively
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # 1 year for static files
+
 QUIZ_LIMIT  = 25
 RAPID_LIMIT = 25
 RAPID_TIME  = 180
@@ -342,13 +345,27 @@ ACHIEVEMENTS = [
 ]
 ACH_MAP = {a["id"]: a for a in ACHIEVEMENTS}
 
-# ── DB ──────────────────────────────────────────────────────────────
+# ── DB connection pool ───────────────────────────────────────────────
+from psycopg2 import pool as _pgpool
+
+_db_pool = None
+
+def _get_pool():
+    global _db_pool
+    if _db_pool is None or _db_pool.closed:
+        _db_pool = _pgpool.ThreadedConnectionPool(
+            minconn=1, maxconn=5,
+            dsn=DATABASE_URL,
+            cursor_factory=RealDictCursor
+        )
+    return _db_pool
+
 def get_db():
     import contextlib
     class _PGConn:
-        """Thin wrapper making psycopg2 behave like sqlite3 for our usage."""
+        """Thin wrapper — borrows a connection from the pool, returns it on exit."""
         def __init__(self):
-            self._conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            self._conn = _get_pool().getconn()
             self._conn.autocommit = False
         def execute(self, sql, params=()):
             sql = _pg_sql(sql)
@@ -358,31 +375,24 @@ def get_db():
         def executemany(self, sql, seq):
             sql = _pg_sql(sql)
             cur = self._conn.cursor()
-            for p in seq:
-                cur.execute(sql, p)
-            return cur
-        def executescript(self, script):
-            cur = self._conn.cursor()
-            for stmt in script.split(';'):
-                s = stmt.strip()
-                if s:
-                    try:
-                        cur.execute(_pg_sql(s))
-                    except Exception:
-                        self._conn.rollback()
-                        raise
+            for p in seq: cur.execute(sql, p)
             return cur
         def commit(self):   self._conn.commit()
         def rollback(self): self._conn.rollback()
         def close(self):
             try: self._conn.commit()
             except: pass
-            self._conn.close()
+            _get_pool().putconn(self._conn)
         def __enter__(self): return self
         def __exit__(self, exc_type, *_):
-            if exc_type: self._conn.rollback()
-            else:        self._conn.commit()
-            self._conn.close()
+            if exc_type:
+                try: self._conn.rollback()
+                except: pass
+            else:
+                try: self._conn.commit()
+                except: pass
+            try: _get_pool().putconn(self._conn)
+            except: pass
     return _PGConn()
 
 def _pg_sql(sql):
