@@ -1,184 +1,141 @@
 """
-Beewise AI Module — ai.py
-=========================
-Handles all AI features:
-  - BeeBot study buddy chat
-  - AI question generation for admins
-
-Powered by Anthropic Claude API.
-Set ANTHROPIC_API_KEY environment variable to enable.
-Falls back to Pollinations (free, no key) if no key is set.
+Beewise AI Module
+=================
+Priority order:
+  1. Anthropic Claude  — set ANTHROPIC_API_KEY  (best quality)
+  2. Groq              — set GROQ_API_KEY        (free, very fast)
+  3. Pollinations      — no key needed           (free fallback)
 """
 
-import os
-import json
-import requests
+import os, json, requests
 
-# ── Config ────────────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-AI_MODEL          = "claude-haiku-4-5-20251001"   # fast + cheap
-AI_TIMEOUT        = 30
+GROQ_API_KEY      = os.environ.get("GROQ_API_KEY", "")
+TIMEOUT           = 25
 CHAT_TOKENS       = 500
 GEN_TOKENS        = 2000
 
-# ── Core: Anthropic API call ──────────────────────────────────────────────────
-def _ask_anthropic(system_prompt: str, user_message: str, max_tokens: int) -> tuple:
-    """Call Anthropic Claude API. Returns (text, None) or (None, error)."""
+# ── 1. Anthropic ──────────────────────────────────────────────────────────────
+def _anthropic(system, user, max_tokens):
     try:
-        resp = requests.post(
+        r = requests.post(
             "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": AI_MODEL,
-                "max_tokens": max_tokens,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": user_message}],
-            },
-            timeout=AI_TIMEOUT,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        text = data["content"][0]["text"].strip()
-        return (text, None) if text else (None, "Empty response — try again.")
+            headers={"x-api-key": ANTHROPIC_API_KEY,
+                     "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-haiku-4-5-20251001",
+                  "max_tokens": max_tokens,
+                  "system": system,
+                  "messages": [{"role": "user", "content": user}]},
+            timeout=TIMEOUT)
+        r.raise_for_status()
+        text = r.json()["content"][0]["text"].strip()
+        return (text, None) if text else (None, "Empty response.")
     except requests.exceptions.Timeout:
-        return None, "AI took too long. Try again in a moment!"
-    except requests.exceptions.ConnectionError:
-        return None, "Could not reach AI server. Check your internet connection."
+        return None, "AI is taking too long. Try again!"
     except Exception as e:
-        return None, f"AI error: {str(e)}"
+        return None, f"Anthropic error: {e}"
 
-
-# ── Fallback: Pollinations (free, no key) ─────────────────────────────────────
-def _ask_pollinations(system_prompt: str, user_message: str, max_tokens: int) -> tuple:
-    """Fallback to Pollinations free AI via POST."""
+# ── 2. Groq (free tier — llama3) ─────────────────────────────────────────────
+def _groq(system, user, max_tokens):
     try:
-        resp = requests.post(
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={"model": "llama3-8b-8192",
+                  "max_tokens": max_tokens,
+                  "messages": [{"role": "system", "content": system},
+                                {"role": "user",   "content": user}]},
+            timeout=TIMEOUT)
+        r.raise_for_status()
+        text = r.json()["choices"][0]["message"]["content"].strip()
+        return (text, None) if text else (None, "Empty response.")
+    except requests.exceptions.Timeout:
+        return None, "AI is taking too long. Try again!"
+    except Exception as e:
+        return None, f"Groq error: {e}"
+
+# ── 3. Pollinations (no key needed) ──────────────────────────────────────────
+def _pollinations(system, user, max_tokens):
+    try:
+        r = requests.post(
             "https://text.pollinations.ai/",
-            json={
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                "model": "openai",
-                "max_tokens": max_tokens,
-                "private": True,
-            },
-            timeout=AI_TIMEOUT,
-        )
-        resp.raise_for_status()
-        text = resp.text.strip()
-        return (text, None) if text else (None, "Empty response — try again.")
+            json={"model": "openai",
+                  "max_tokens": max_tokens,
+                  "private": True,
+                  "messages": [{"role": "system", "content": system},
+                                {"role": "user",   "content": user}]},
+            timeout=TIMEOUT)
+        r.raise_for_status()
+        text = r.text.strip()
+        return (text, None) if text else (None, "Empty response.")
     except requests.exceptions.Timeout:
         return None, "AI took too long. Try again in a moment!"
-    except requests.exceptions.ConnectionError:
-        return None, "Could not reach AI server. Check your internet connection."
     except Exception as e:
-        return None, f"AI error: {str(e)}"
+        return None, f"AI error: {e}"
 
-
-def ask_ai(system_prompt: str, user_message: str, max_tokens: int = CHAT_TOKENS) -> tuple:
-    """Route to Anthropic if key is set, otherwise fall back to Pollinations."""
+# ── Router ────────────────────────────────────────────────────────────────────
+def ask_ai(system, user, max_tokens=CHAT_TOKENS):
     if ANTHROPIC_API_KEY:
-        return _ask_anthropic(system_prompt, user_message, max_tokens)
-    return _ask_pollinations(system_prompt, user_message, max_tokens)
+        return _anthropic(system, user, max_tokens)
+    if GROQ_API_KEY:
+        return _groq(system, user, max_tokens)
+    return _pollinations(system, user, max_tokens)
 
+# ── BeeBot ────────────────────────────────────────────────────────────────────
+def beebot_reply(username, message, weak_cats, strong_cats, total_games):
+    weak_str   = ", ".join(weak_cats)   if weak_cats   else "none yet"
+    strong_str = ", ".join(strong_cats) if strong_cats else "none yet"
+    system = f"""You are BeeBot, a friendly AI study buddy inside Beewise — a quiz platform \
+covering HTML, CSS, Python, SQL, Flask, and Computer Science.
 
-# ── BeeBot Study Buddy ─────────────────────────────────────────────────────────
-def beebot_reply(username: str, message: str, weak_cats: list, strong_cats: list,
-                 total_games: int) -> tuple:
-    """Generate a personalised BeeBot study reply. Returns (reply_text, None) or (None, error)."""
-    weak_str   = ", ".join(weak_cats)   if weak_cats   else "None yet"
-    strong_str = ", ".join(strong_cats) if strong_cats else "None yet"
+Student: {username} | Games played: {total_games}
+Weak topics (below 70%): {weak_str}
+Strong topics (70%+): {strong_str}
 
-    system = f"""You are BeeBot — a friendly, encouraging AI study buddy inside Beewise, \
-a quiz platform covering HTML, CSS, Python, SQL, Flask, and General Computer Science.
+Rules:
+- Be warm, encouraging, and concise (2-3 short paragraphs max)
+- Use bee emojis occasionally 🐝🍯✨
+- Give clear examples for weak topics
+- End with a short tip or motivation
+- If asked off-topic, gently guide back to studying
+- Never say what AI model you are"""
+    return ask_ai(system, message, CHAT_TOKENS)
 
-Student profile:
-- Name: {username}
-- Total games played: {total_games}
-- Weak categories (below 70%): {weak_str}
-- Strong categories (70%+): {strong_str}
-
-Your personality rules:
-- Friendly, warm, encouraging — like a helpful older classmate
-- Use bee emojis occasionally 🐝🍯✨ but don't overdo it
-- Give clear, simple explanations suitable for students
-- If they ask about a weak category, be extra encouraging and give good examples
-- Keep answers concise — 2 to 4 short paragraphs max
-- If they ask something off-topic, gently guide them back to studying
-- End with a short tip or motivation when relevant
-- NEVER mention you are an AI model or what company made you"""
-
-    return ask_ai(system, message, max_tokens=CHAT_TOKENS)
-
-
-# ── AI Question Generator ──────────────────────────────────────────────────────
-def generate_questions(topic: str, category: str, count: int = 5) -> tuple:
-    """Generate MCQ questions. Returns (list_of_dicts, None) or (None, error)."""
-    count = min(max(count, 1), 10)
-
-    system = """You are an expert quiz question writer for Beewise, a computer science quiz platform.
-Generate multiple-choice questions in EXACT JSON format.
-
-Strict rules:
-- Return ONLY a valid JSON array — no explanation, no markdown, no backticks
-- Each question has exactly these keys: "question", "opt0", "opt1", "opt2", "opt3"
-- opt0 is ALWAYS the correct answer (the system shuffles automatically)
-- All 4 options must be plausible — not obviously wrong
-- Questions must be clear, unambiguous, and educational
-- Suitable for undergraduate IT/CS students"""
+# ── Question Generator ────────────────────────────────────────────────────────
+def generate_questions(topic, category, count=5):
+    count = min(max(int(count), 1), 10)
+    system = """You are an expert quiz writer for Beewise, a CS quiz platform.
+Return ONLY a valid JSON array — no markdown, no backticks, no explanation.
+Each object must have: "question", "opt0" (correct), "opt1", "opt2", "opt3".
+Make all 4 options plausible. Questions must be clear and educational."""
 
     user = f"""Generate exactly {count} multiple-choice questions about: {topic}
 Category: {category}
 
-Return ONLY this JSON format, nothing else:
-[
-  {{
-    "question": "Question text here?",
-    "opt0": "Correct answer",
-    "opt1": "Wrong option 1",
-    "opt2": "Wrong option 2",
-    "opt3": "Wrong option 3"
-  }}
-]"""
+Return ONLY this JSON (no other text):
+[{{"question":"...","opt0":"correct answer","opt1":"wrong","opt2":"wrong","opt3":"wrong"}}]"""
 
-    text, err = ask_ai(system, user, max_tokens=GEN_TOKENS)
+    text, err = ask_ai(system, user, GEN_TOKENS)
     if err:
         return None, err
-
     try:
+        # Strip markdown fences if present
         clean = text.strip()
-        # Strip accidental markdown code fences
         if "```" in clean:
-            for part in clean.split("```"):
-                part = part.strip()
-                if part.startswith("json"):
-                    part = part[4:].strip()
-                if part.startswith("["):
-                    clean = part
-                    break
-        # Find first [ ... ] block in case there's any preamble
-        start = clean.find("[")
-        end   = clean.rfind("]")
+            parts = clean.split("```")
+            for p in parts:
+                p = p.strip().lstrip("json").strip()
+                if p.startswith("["): clean = p; break
+        start, end = clean.find("["), clean.rfind("]")
         if start != -1 and end != -1:
             clean = clean[start:end+1]
-
-        questions = json.loads(clean)
-
-        if not isinstance(questions, list) or len(questions) == 0:
-            return None, "AI returned empty or invalid question list. Try again."
-
-        required = {"question", "opt0", "opt1", "opt2", "opt3"}
-        valid = [q for q in questions if required.issubset(q.keys())]
-
+        qs = json.loads(clean)
+        required = {"question","opt0","opt1","opt2","opt3"}
+        valid = [q for q in qs if required.issubset(q.keys())]
         if not valid:
-            return None, "AI questions are missing required fields. Try again."
-
+            return None, "AI returned invalid format. Try a different topic."
         return valid, None
-
     except json.JSONDecodeError as e:
-        return None, f"AI returned invalid format. Try a different topic. ({e})"
+        return None, f"AI returned invalid JSON. Try again. ({e})"
